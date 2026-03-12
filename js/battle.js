@@ -149,82 +149,106 @@ function shatterCard(slotEl) {
   setTimeout(() => flash.remove(), 280);
 }
 
+// ── 🪦 DEATH RESOLUTION ENGINE (EVENT QUEUE + SAFETY GUARDS) ──────────────────────────
 async function checkDeaths() {
-  let changed = false, loop = true;
-  while (loop) {
-    loop = false;
-    [playerBoard, enemyBoard].forEach((board, bIdx) => {
-      let slots = bIdx === 0 ? playerBoardSlots : enemyBoardSlots;
-      let grave  = bIdx === 0 ? playerGraveyard  : enemyGraveyard;
+  let deathResolved = true;
+  let changed = false;
+
+  // วนลูปจนกว่าจะไม่มีใครตายเพิ่ม (Chain Reaction)
+  while (deathResolved) {
+    if (isGameOver) break; // 🐞 Fix 6: หยุดทันทีถ้าฮีโร่ตายและเกมจบแล้ว
+    
+    deathResolved = false;
+    let pendingDeaths = [];
+
+    // 1. สแกนหาการ์ดที่ตายใหม่ในกระดานทั้งสองฝั่ง (🐞 Fix 7: จัดคิวแบบ First-in, First-resolved)
+    for (let isPlayer of [true, false]) {
+      let board = getMyBoard(isPlayer);
       for (let i = 0; i < BOARD_SIZE; i++) {
-        let c = board[i]; if (!c || c.hp > 0 || c.isDying) continue;
-        c.isDying = true;
-        for (let [key, fn] of Object.entries(DEATH_TABLE)) {
-          if (hasSkill(c, key)) {
-            let blocked = fn(c, board, grave, slots, i, bIdx);
-            if (blocked) { c.isDying = false; break; }
-          }
+        let c = board[i];
+        if (c && c.hp <= 0 && !c.isDying) {
+          c.isDying = true; // ล็อคเป้าไว้ จะได้ไม่หยิบซ้ำ
+          pendingDeaths.push({ card: c, index: i, isPlayer: isPlayer });
         }
       }
-    });
-    for (let i = 0; i < BOARD_SIZE; i++) {
-      for (const [board, grave, oBoard, oSlots, isP] of [[enemyBoard, enemyGraveyard, playerBoard, playerBoardSlots, false], [playerBoard, playerGraveyard, enemyBoard, enemyBoardSlots, true]]) {
-        if (board[i] && board[i].hp <= 0) {
-          if (board[i].isClone) {
-            let xd = Math.floor(board[i].parentATK * 0.5), ti = -1, mh = -1;
-            oBoard.forEach((e, idx) => { if (e && e.hp > mh) { mh = e.hp; ti = idx; } });
-            if (ti !== -1) { addLog(`💥 โคลนระเบิดใส่ ${oBoard[ti].name}`); applyDamage(oBoard[ti], xd, oSlots[ti], isP, "soul_nova", board[i]); }
-          }
-          addLog(`💀 <span class="${isP ? 'log-enemy' : 'log-player'}">${board[i].name}</span> ตาย`);
+    }
 
-          const devourBoard = isP ? enemyBoard : playerBoard;
-          const devourSlots = isP ? enemyBoardSlots : playerBoardSlots;
-          const deadSlots  = board === playerBoard ? playerBoardSlots : enemyBoardSlots;
-          const deadSRect  = getEffectRect(deadSlots?.[i]);
-          devourBoard.forEach((ally, ai) => {
-            if (!ally || ally === board[i] || ally.hp <= 0) return;
-            if (!hasSkill(ally, "Abyss Devour")) return;
-            if ((ally.devourStacks || 0) >= 8) return;
-            ally.devourStacks = (ally.devourStacks || 0) + 1;
-            const healAmt = Math.floor(ally.maxHP * 0.1);
-            ally._displayHP = ally.hp; ally._displayATK = ally.atk; 
-            ally.hp = Math.min(ally.maxHP, ally.hp + healAmt);
-            ally.baseATK = ally.baseATK || ally.atk;
-            ally.atk = Number(ally.atk) + 40;
-            if (combatStats[ally?.uid]) combatStats[ally?.uid].heal += healAmt;
-            const dRect = getEffectRect(devourSlots[ai]);
-            if (deadSRect) {
-              const orb = document.createElement('div'); orb.className = 'battle-vfx devour-orb';
-              const sz = 14;
-              const tx = dRect.left + dRect.width/2 - (deadSRect.left + deadSRect.width/2);
-              const ty = dRect.top  + dRect.height/2 - (deadSRect.top  + deadSRect.height/2);
-              orb.style.cssText = `width:${sz}px;height:${sz}px;left:${deadSRect.left + deadSRect.width/2 - sz/2}px;top:${deadSRect.top + deadSRect.height/2 - sz/2}px;--do-tx:${tx}px;--do-ty:${ty}px;--do-delay:0s;--do-dur:0.75s;`;
-              document.body.appendChild(orb);
-              setTimeout(() => orb.remove(), 900);
-            }
-            showFloat(`🕳 +${healAmt}HP / ATK+40`, devourSlots[ai], "heal");
-            addLog(`🕳 ${ally.name} <span class="log-skill">Abyss Devour</span> (${ally.devourStacks}/8) ฮีล +${healAmt} ATK→${ally.atk}`);
+    if (pendingDeaths.length === 0) break;
+    deathResolved = true; 
+    changed = true;
+
+    // 2. ไล่ประมวลผลการตายทีละใบ
+    for (let pd of pendingDeaths) {
+      if (isGameOver) break; // 🐞 Fix 6: Guard อีกชั้นระหว่างประมวลผล
+      
+      let { card, index, isPlayer } = pd;
+
+      // 🐞 Fix 2: สร้าง Context แบบ Live Getters ป้องกัน Stale Data
+      let context = {
+        card: card, idx: index, isPlayer: isPlayer,
+        get myBoard() { return getMyBoard(isPlayer); },
+        get oppBoard() { return getMyBoard(!isPlayer); },
+        get mySlots() { return isPlayer ? playerBoardSlots : enemyBoardSlots; },
+        get oppSlots() { return isPlayer ? enemyBoardSlots : playerBoardSlots; },
+        preventDeath: false 
+      };
+
+      // 💥 Hook 1: ก่อนตาย (onDeath) ของตัวมันเอง
+      await triggerSkillEvent('onDeath', card, context);
+
+      if (context.preventDeath) {
+        card.isDying = false; // รอดตาย! ปลดล็อคสถานะ
+        continue;
+      }
+
+      // 🐞 ดึงข้อมูลกระดานสดใหม่เสมอ เผื่อ Hook 1 ทำการสลับบอร์ดหรือดึงการ์ดใหม่มา
+      let myBoard = getMyBoard(isPlayer);
+      let oppBoard = getMyBoard(!isPlayer);
+      let mySlots = isPlayer ? playerBoardSlots : enemyBoardSlots;
+      let oppSlots = isPlayer ? enemyBoardSlots : playerBoardSlots;
+
+      // 💥 Hook 2: เมื่อเพื่อนหรือศัตรูตาย (onAllyDeath / onEnemyDeath)
+      let eventCtx = { deadCard: card, deadIdx: index, deadSlot: mySlots[index] };
+      
+      for (let i = 0; i < BOARD_SIZE; i++) {
+        if (myBoard[i] && myBoard[i].hp > 0 && myBoard[i] !== card) {
+          // 🐞 Fix 1: เติมตัวแปร card และ observerSlot ให้ครบ
+          await triggerSkillEvent('onAllyDeath', myBoard[i], { 
+            ...eventCtx, isPlayer: isPlayer, card: myBoard[i], observerSlot: mySlots[i] 
           });
-
-          oBoard.forEach((killer, ki) => {
-            if (!killer || killer.hp <= 0 || !hasSkill(killer, "Power from the Fallen")) return;
-            killer._displayATK = killer.atk; killer._displayHP = killer.hp;
-            const atkBonus = Math.floor(Number(killer.atk) * 0.2);
-            const healAmt  = Math.floor(killer.maxHP * 0.15);
-            killer.atk = Number(killer.atk) + atkBonus;
-            killer.hp  = Math.min(killer.maxHP, killer.hp + healAmt);
-            if (combatStats[killer?.uid]) combatStats[killer?.uid].heal += healAmt;
-            showFloat(`⚡ ATK+${atkBonus}/+${healAmt}HP`, oSlots[ki], "skill");
-            addLog(`⚡ ${killer.name} <span class="log-skill">Power from the Fallen</span>: ATK→${killer.atk}`);
-          });
-
-          shatterCard(deadSlots[i]); 
-          await sleep(200);          
-          grave.push(board[i]); board[i] = null; changed = true; loop = true;
         }
-      } 
+        if (oppBoard[i] && oppBoard[i].hp > 0) {
+          // 🐞 Fix 1 & 4: เปลี่ยน isPlayer เป็นมุมมองของฝั่งคนดู (Observer) คือฝั่งตรงข้าม (!isPlayer)
+          await triggerSkillEvent('onEnemyDeath', oppBoard[i], { 
+            ...eventCtx, isPlayer: !isPlayer, card: oppBoard[i], observerSlot: oppSlots[i] 
+          });
+        }
+      }
+
+      // 💀 ส่งลงสุสานจริงๆ 
+      if (card.hp <= 0) { 
+        // 🐞 Fix 5: หา index ปัจจุบันเสมอ เผื่อการ์ดถูกเตะไปอยู่ slot อื่นระหว่าง onDeath
+        let currentBoard = getMyBoard(isPlayer);
+        let currentIndex = currentBoard.indexOf(card);
+        
+        if (currentIndex !== -1) {
+          let pN = `<span class="${isPlayer ? 'log-player' : 'log-enemy'}">${card.name}</span>`;
+          addLog(`💀 ${pN} ตาย`);
+          
+          shatterCard(isPlayer ? playerBoardSlots[currentIndex] : enemyBoardSlots[currentIndex]); 
+          await sleep(200);
+
+          let grave = isPlayer ? playerGraveyard : enemyGraveyard;
+          // 🐞 Fix 3: ป้องกันบั๊กดันลงสุสานซ้ำซ้อน
+          if (!grave.includes(card)) grave.push(card); 
+          
+          currentBoard[currentIndex] = null; // ลบออกจากกระดาน ณ ตำแหน่งล่าสุดอย่างปลอดภัย
+        }
+      }
     }
   }
+
+  // อัปเดต UI หลังจากเคลียร์ศพทั้งหมดเสร็จ
   if (changed) { updateHeroHP(); updateGrave(); markDirty(); flushBoard(); }
 }
 

@@ -276,14 +276,15 @@ body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', 
 /* --- สถานะเอฟเฟกต์ใหม่ (Buff/Debuff/Domain) --- */
 .status-icons {
   position: absolute;
-  top: -15px;
+  top: -22px;          /* เพิ่มจาก -15px → ไอคอนลอยพ้นขอบการ์ดชัดขึ้น */
   left: 0;
   width: 100%;
   display: flex;
   justify-content: center;
-  gap: 5px;
+  flex-wrap: wrap;     /* ✅ เพิ่ม: ป้องกันล้นเมื่อมีหลาย status */
+  gap: 4px;
   z-index: 100;
-  pointer-events: none;
+  pointer-events: none; /* ← คงไว้บน container */
 }
 
 .status-icon {
@@ -297,6 +298,15 @@ body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', 
   justify-content: center;
   font-size: 0.7rem;
   box-shadow: 0 0 5px #000;
+  pointer-events: auto; /* ✅ แก้หลัก: เปิด mouse event เฉพาะตัวไอคอน */
+  cursor: help;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.status-icon:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 10px rgba(255,255,255,.5);
+  z-index: 200;
 }
 
 /* ออร่าอาณาเขตและอมตะ */
@@ -1463,9 +1473,14 @@ body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', 
   animation: shardFly 0.72s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
 }
 @keyframes shardFly {
-  0%   { transform: translate(0, 0) rotate(0deg) scale(1);                              opacity: 1; }
-  35%  { opacity: 1; }
-  100% { transform: translate(var(--ex), var(--ey)) rotate(var(--er)) scale(0.28);     opacity: 0; }
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1);                         opacity: 1; }
+  15%  { opacity: 1; }
+  /* ✅ เพิ่ม mid-point ให้เศษลอยพุ่งก่อนตก ดูมีแรงโน้มถ่วง */
+  50%  { transform: translate(
+           calc(var(--ex) * 0.6),
+           calc(var(--ey) * 0.4)
+         ) rotate(calc(var(--er) * 0.5)) scale(0.65);                              opacity: 0.85; }
+  100% { transform: translate(var(--ex), var(--ey)) rotate(var(--er)) scale(0.2); opacity: 0; }
 }
 
 .card-shatter-flash {
@@ -1477,7 +1492,70 @@ body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', 
   animation: shatterFlash 0.25s ease-out forwards;
 }
 @keyframes shatterFlash {
-  0%   { opacity: 0.85; transform: scale(1.06); }
-  100% { opacity: 0;    transform: scale(1.22); }
+  0%   { opacity: 0.9; transform: scale(1.08); }
+  40%  { opacity: 0.6; transform: scale(1.15); }
+  100% { opacity: 0;   transform: scale(1.25); }
 }
 /* ─────────────────────────────────────────────────────────── */
+/* ── ✨ SHATTER EFFECT (Fixed) ─────────────────────────── */
+
+/* Flash ก่อนแตก */
+.card-shatter-flash {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  background: white;
+  border-radius: 8px;
+  /* ✅ ยืด duration ให้พอดีกับ shard */
+  animation: shatterFlash 0.35s ease-out forwards;
+}
+
+
+/* เศษการ์ดบิน */
+.card-shard {
+  position: fixed;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a1a2e;
+  pointer-events: none;
+  z-index: 9999;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  will-change: transform, opacity;
+  /* ✅ ใส่ fallback ป้องกัน JS ลืม set variables */
+  --ex: 0px;
+  --ey: 0px;
+  --er: 0deg;
+  animation: shardFly 0.72s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+
+/* ── การ์ดตาย (dead-card) ──────────────────────────────── */
+.dead-card {
+  width: 100px;
+  height: 140px;
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid #333;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+  background: #222;
+  /* ✅ เพิ่ม death fade transition */
+  animation: cardDeath 0.4s ease-out forwards;
+  pointer-events: none;
+}
+/* ✅ การ์ดกระตุก+หมุนเล็กน้อยก่อนหายไป */
+@keyframes cardDeath {
+  0%   { transform: scale(1) rotate(0deg);   filter: brightness(1);   opacity: 1; }
+  20%  { transform: scale(1.08) rotate(-3deg); filter: brightness(1.5) saturate(0); }
+  50%  { transform: scale(0.9) rotate(3deg);  filter: brightness(0.5) saturate(0); opacity: 0.7; }
+  100% { transform: scale(0.7) rotate(-5deg); filter: brightness(0)   saturate(0); opacity: 0; }
+}
+
+/* ── ออร่าก่อนตาย (low HP warning) ───────────────────── */
+/* ✅ ใหม่: ใส่ class นี้ตอน HP < 20% ให้ผู้เล่นรู้ตัว */
+.card.danger-low-hp {
+  animation: dangerPulse 0.6s ease-in-out infinite alternate !important;
+}
+@keyframes dangerPulse {
+  0%   { box-shadow: 0 0 8px rgba(255, 50, 50, 0.5);  border-color: #ff3333; }
+  100% { box-shadow: 0 0 22px rgba(255, 0, 0, 0.9);   border-color: #ff0000; }
+}
