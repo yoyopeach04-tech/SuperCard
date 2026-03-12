@@ -168,7 +168,17 @@ function openDetail(card, src, idx) {
 let graveBtn, graveModal, closeModal, graveList;
 
 function playCard(idx) {
-  let e = playerBoard.indexOf(null);
-  if (e !== -1) { addLog(`👉 <span class="log-player">พีช</span> ลงการ์ด <span class="log-player">${hand[idx].name}</span>`); playerBoard[e] = hand[idx]; initCard(playerBoard[e]); hand.splice(idx, 1); markDirty(); flushBoard(); renderHand(); }
-  else alert("สนามเต็มแล้ว!");
+  let st = window.engineState.p1;
+  let e = st.board.indexOf(null);
+  
+  if (e !== -1) { 
+    let card = st.hand[idx];
+    addLog(`👉 <span class="log-player">พีช</span> ลงการ์ด <span class="log-player">${card.name}</span>`);
+    card.flags._initialized = true; // ยืนยันการลงสนามแบบ OOP
+    st.board[e] = card; 
+    st.hand.splice(idx, 1); 
+    markDirty(); flushBoard(); renderHand(); 
+  } else {
+    alert("สนามเต็มแล้ว!");
+  }
 }
