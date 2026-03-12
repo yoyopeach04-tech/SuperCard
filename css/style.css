@@ -1,0 +1,1483 @@
+body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+.battlefield { width: 900px; background: linear-gradient(to bottom, #1a1a2e, #16213e, #0f3460); border: 3px solid #d4af37; border-radius: 15px; padding: 20px; box-shadow: 0 0 30px rgba(212, 175, 55, 0.2); position: relative; }
+
+/* ฮีโร่ */
+.hero { text-align: center; padding: 10px; background: rgba(0, 0, 0, 0.5); border-radius: 8px; margin-bottom: 15px; border: 1px solid #444; }
+.hero h2 { margin: 0; font-size: 1.2rem; text-transform: uppercase;}
+.hero p { margin: 5px 0 0 0; font-weight: bold; font-size: 1.2rem;}
+.enemy-hero { color: #ff4c4c; border-color: #5c1a1a;}
+.player-hero { color: #4cff4c; margin-top: 15px; margin-bottom: 0; border-color: #1a5c2b;}
+
+/* ── Animated HP counter flash ── */
+@keyframes hpFlash {
+  0%   { color: #fff; transform: scale(1); }
+  40%  { color: #ff3b3b; transform: scale(1.25); }
+  100% { color: inherit; transform: scale(1); }
+}
+@keyframes hpHeal {
+  0%   { color: #fff; transform: scale(1); }
+  40%  { color: #33ff33; transform: scale(1.2); }
+  100% { color: inherit; transform: scale(1); }
+}
+.hp-hit  { animation: hpFlash 0.35s ease-out; }
+.hp-heal { animation: hpHeal  0.35s ease-out; }
+
+/* กระดานและช่องวางการ์ด */
+.board { display: flex; justify-content: center; gap: 15px; }
+.card-slot { width: 100px; height: 140px; background: rgba(255, 255, 255, 0.03); border: 2px dashed #555; border-radius: 8px; transition: 0.3s; display: flex; justify-content: center; align-items: center; position: relative; overflow: visible; /* Fix Bug #7: ป้องกัน popup card detail โดนตัดใน browser บางตัว */ }
+.player-board .card-slot { border-color: rgba(76, 255, 76, 0.3); }
+.enemy-board .card-slot { border-color: rgba(255, 76, 76, 0.3); }
+.divider { border: 0; height: 2px; background: linear-gradient(to right, transparent, #d4af37, transparent); margin: 20px 0; }
+.hand-zone { display: flex; justify-content: center; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 1px solid #333; min-height: 150px; flex-wrap: wrap; /* Fix Bug #4: ป้องกันการ์ดล้นออกนอกกรอบเมื่อมีหลายใบ */ }
+
+/* สไตล์การ์ดเต็มใบ (เจ๊ลบ overflow: hidden ออกให้แล้ว ป๊อปอัปจะได้ทะลุกรอบได้!) */
+.card, .dead-card { 
+  width: 100px; 
+  height: 140px; 
+  position: relative; 
+  border-radius: 8px; 
+  border: 1px solid #333; 
+  box-shadow: 0 4px 8px rgba(0,0,0,0.5); 
+  cursor: pointer; 
+  transition: transform 0.2s, box-shadow 0.2s; 
+  background: #222; 
+}
+.card:hover { 
+  transform: translateY(-10px) scale(1.05); 
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.6); 
+  z-index: 50; /* อัปเกรด z-index ตอนชี้ให้พุ่งมาหน้าสุด ป๊อปอัปจะได้ไม่โดนไพ่อื่นบัง */
+}
+
+/* พื้นหลังรูปภาพ (ใส่ความโค้งมนตรงนี้แทน จะได้ไม่ทะลุกรอบ) */
+.card-image-bg { 
+  width: 100%; 
+  height: 100%; 
+  background-size: cover; 
+  background-position: center; 
+  position: absolute; 
+  top: 0; 
+  left: 0; 
+  opacity: 0.8; 
+  border-radius: 8px; /* เพิ่มขอบโค้งให้รูป */
+}
+
+/* แถบข้อมูลดำๆ ด้านล่าง */
+.card-data-overlay { 
+  position: absolute; 
+  bottom: 0; 
+  left: 0; 
+  width: 100%; 
+  padding: 8px; 
+  background-color: rgba(0, 0, 0, 0.7); 
+  color: #eee; 
+  box-sizing: border-box; 
+  text-align: center; 
+  border-bottom-left-radius: 8px; /* โค้งขอบล่างซ้าย */
+  border-bottom-right-radius: 8px; /* โค้งขอบล่างขวา */
+}
+
+/* เวลานับถอยหลัง */
+.wait-time { position: absolute; top: 3px; left: 3px; background-color: #333; color: #eee; border-radius: 4px; padding: 2px 5px; font-size: 0.7rem; z-index: 10; font-weight: bold; border: 1px solid #d4af37;}
+.wait-time.ready { background-color: #d4af37; color: #111; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+/* ปุ่มจบเทิร์น */
+.end-turn-btn { background: linear-gradient(to bottom, #8b0000, #4a0000); color: white; border: 2px solid #d4af37; padding: 10px 25px; font-size: 1.2rem; font-weight: bold; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); transition: 0.2s; }
+.end-turn-btn:hover:not(:disabled) { background: linear-gradient(to bottom, #a50000, #600000); transform: scale(1.05); }
+.end-turn-btn:active:not(:disabled) { transform: scale(0.95); }
+.end-turn-btn:disabled { filter: grayscale(100%); cursor: not-allowed; }
+
+/* สุสาน (z-index สูงสุด) */
+.graveyard-zone { position: absolute; right: 20px; bottom: 130px; background: rgba(20, 20, 30, 0.9); border: 2px solid #d4af37; padding: 12px 18px; border-radius: 10px; cursor: pointer; font-weight: bold; color: #d4af37; box-shadow: 0 0 15px rgba(0,0,0,0.7); z-index: 100; }
+.graveyard-zone:hover { background: #333; color: #fff; }
+.modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.9); justify-content: center; align-items: center; }
+.modal-content { background: #111; border: 2px solid #d4af37; padding: 30px; width: 80%; max-width: 500px; border-radius: 15px; text-align: center; }
+.close { position: absolute; right: 20px; top: 10px; color: #aaa; font-size: 30px; font-weight: bold; cursor: pointer; }
+.close:hover { color: #fff; }
+.grave-list { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 20px; max-height: 350px; overflow-y: auto; }
+
+/* อนิเมชั่นโจมตี */
+@keyframes attackUp {
+  0%, 100% { transform: scale(1) translateY(0); z-index: 1; }
+  50% { transform: scale(1.1) translateY(-70px); z-index: 10; box-shadow: 0 0 30px #ff4c4c; border-color: #ff4c4c; }
+}
+@keyframes attackDown {
+  0%, 100% { transform: scale(1) translateY(0); z-index: 1; }
+  50% { transform: scale(1.1) translateY(70px); z-index: 10; box-shadow: 0 0 30px #ff4c4c; border-color: #ff4c4c; }
+}
+.anim-attack-up { animation: attackUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+.anim-attack-down { animation: attackDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+/* --- ระบบดาวและสกิล (Star & Skill System) --- */
+.card-stars {
+  position: absolute;
+  top: 3px;
+  right: 5px;
+  font-size: 0.65rem;
+  color: #ffd700; /* สีทอง */
+  text-shadow: 1px 1px 2px #000;
+  z-index: 10;
+  letter-spacing: -1px; /* บีบดาวให้ชิดกันนิดนึง */
+}
+
+/* --- หน้าต่างซ่อนสกิล (Tooltip) โชว์ตอนกดค้าง/ชี้ค้าง --- */
+.skill-tooltip {
+  position: absolute;
+  bottom: 110%; /* ลอยเด้งขึ้นมาเหนือการ์ด */
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(10, 10, 15, 0.95);
+  border: 1px solid #add8e6;
+  color: #add8e6;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  white-space: nowrap;
+  pointer-events: none; /* ไม่ให้บังเมาส์เราตอนจะคลิกไพ่ */
+  opacity: 0;
+  visibility: hidden;
+  transition: all 0.2s ease 0.3s; /* หน่วงเวลา 0.3 วิ ให้ความรู้สึกเหมือนกดค้างถึงจะขึ้น */
+  z-index: 100;
+  box-shadow: 0 0 10px rgba(173, 216, 230, 0.3);
+  text-align: left;
+  line-height: 1.4;
+}
+
+/* โชว์ Tooltip เมื่อเมาส์ชี้แช่ (Hover) หรือ กดค้าง (Active) */
+.card:hover .skill-tooltip,
+.card:active .skill-tooltip {
+  opacity: 1;
+  visibility: visible;
+  bottom: 105%; /* เอฟเฟกต์เด้งลอยขึ้นมานิดนึง */
+}
+/* --- ตัวเลขบอกจำนวนกองการ์ด (Deck Counter) --- */
+.deck-counter {
+  color: #d4af37;
+  font-weight: bold;
+  font-size: 0.85rem;
+  text-align: center;
+  margin: 5px 0 10px 0;
+  text-shadow: 1px 1px 3px #000;
+  background: rgba(0, 0, 0, 0.5);
+  display: inline-block;
+  padding: 5px 15px;
+  border-radius: 20px;
+  border: 1px solid #555;
+  position: relative;
+  left: 50%;
+  transform: translateX(-50%);
+}
+/* --- สไตล์หน้าต่างดูรายละเอียดการ์ด (Card Detail) --- */
+.card-detail-content {
+  max-width: 650px !important;
+  padding: 25px !important;
+  text-align: left !important;
+  background: linear-gradient(135deg, #1a1a2e, #111) !important;
+}
+
+.card-detail-layout {
+  display: flex;
+  gap: 25px;
+  align-items: flex-start;
+}
+
+@media (max-width: 600px) {
+  .card-detail-layout { flex-direction: column; align-items: center; }
+}
+
+.detail-card-image {
+  width: 220px;
+  height: 310px;
+  border-radius: 12px;
+  border: 3px solid #d4af37;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 25px rgba(0,0,0,0.8);
+  flex-shrink: 0;
+}
+
+.detail-info { flex-grow: 1; width: 100%; }
+.detail-info h2 { margin: 0 0 5px 0; color: #fff; font-size: 2rem; letter-spacing: 1px; }
+.detail-stars { color: #ffd700; font-size: 1.2rem; margin-bottom: 15px; letter-spacing: 2px; }
+.detail-stats span { font-size: 1.2rem; font-weight: bold; margin-right: 15px; background: rgba(0,0,0,0.5); padding: 5px 10px; border-radius: 8px; border: 1px solid #555; }
+#detail-card-atk { color: #4cff4c; }
+#detail-card-hp { color: #ff4c4c; }
+#detail-card-wait { color: #aaa; }
+
+.detail-skills-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding-right: 10px;
+}
+
+.detail-skill-item {
+  margin-bottom: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 12px;
+  border-radius: 8px;
+  border-left: 4px solid #add8e6;
+}
+
+.detail-skill-title { font-weight: bold; color: #add8e6; font-size: 1.1rem; margin-bottom: 5px; }
+.detail-skill-desc { font-size: 0.9rem; color: #ccc; line-height: 1.5; }
+/* --- ออร่าการ์ดระดับ UR (Ultra Rare) --- */
+.card-ur {
+  border: 3px solid transparent !important;
+  background-image: linear-gradient(#222, #222), linear-gradient(to right, #ff00ff, #00ffff, #ff00ff) !important;
+  background-origin: border-box;
+  background-clip: content-box, border-box;
+  box-shadow: 0 0 20px rgba(255, 0, 255, 0.6), inset 0 0 15px rgba(0, 255, 255, 0.4);
+  animation: urGlow 2s infinite alternate;
+}
+
+@keyframes urGlow {
+  0% { box-shadow: 0 0 20px rgba(255, 0, 255, 0.6), inset 0 0 10px rgba(0, 255, 255, 0.4); }
+  100% { box-shadow: 0 0 40px rgba(0, 255, 255, 0.8), inset 0 0 20px rgba(255, 0, 255, 0.6); }
+}
+
+.clone-card { filter: hue-rotate(180deg) opacity(80%) !important; border-color: #9932cc !important; }
+
+@keyframes floatTextAnim {
+  0%   { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+  20%  { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+  100% { margin-top: -80px; transform: translate(-50%, -50%) scale(1); opacity: 0; }
+}
+
+.dmg-text { color: #ff3333; } /* สีแดงสำหรับดาเมจ */
+.heal-text { color: #33ff33; } /* สีเขียวสำหรับฮีล */
+.skill-text { color: #ffcc00; font-size: 1.5rem; } /* สีทองสำหรับชื่อสกิลสถานะ */
+/* --- เอฟเฟกต์ลูกไฟ (Fireball Projectile) --- */
+.fireball {
+  position: absolute;
+  width: 25px;
+  height: 25px;
+  background: radial-gradient(circle, #ffffff 10%, #ffcc00 40%, #ff0000 80%);
+  border-radius: 50%;
+  box-shadow: 0 0 15px #ffcc00, 0 0 30px #ff0000;
+  z-index: 1000;
+  pointer-events: none;
+  top: 50%;
+  left: 50%;
+  margin-top: -12.5px;
+  margin-left: -12.5px;
+}
+
+@keyframes shootFireballUp {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-220px) scale(1.5); opacity: 0; }
+}
+
+@keyframes shootFireballDown {
+  0% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(220px) scale(1.5); opacity: 0; }
+}
+
+.anim-fireball-up { animation: shootFireballUp calc(0.4s / var(--speed)) ease-in forwards; }
+.anim-fireball-down { animation: shootFireballDown calc(0.4s / var(--speed)) ease-in forwards; }
+/* --- สถานะเอฟเฟกต์ใหม่ (Buff/Debuff/Domain) --- */
+.status-icons {
+  position: absolute;
+  top: -15px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  gap: 5px;
+  z-index: 100;
+  pointer-events: none;
+}
+
+.status-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #222;
+  border: 1px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  box-shadow: 0 0 5px #000;
+}
+
+/* ออร่าอาณาเขตและอมตะ */
+.domain-active { box-shadow: 0 0 25px #8a2be2, inset 0 0 15px #4b0082 !important; border-color: #8a2be2 !important; }
+.immortal-active { box-shadow: 0 0 25px #ffff00, inset 0 0 15px #ffaa00 !important; border-color: #ffff00 !important; }
+/* --- ระบบ Battle Log (แอบอยู่มุมจอ) --- */
+.log-toggle-btn {
+  position: absolute; left: 10px; bottom: 10px; /* วางมุมซ้ายล่าง */
+  background: rgba(0, 0, 0, 0.8); color: #ccc; border: 1px solid #555;
+  padding: 8px 12px; border-radius: 5px; cursor: pointer; font-size: 0.75rem; 
+  z-index: 99999; transition: 0.3s; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+}
+.log-toggle-btn:hover { background: #333; color: #fff; border-color: #d4af37; }
+
+.log-container {
+  position: absolute; left: 10px; bottom: 50px;
+  width: 320px; height: 400px; background: rgba(15, 15, 20, 0.95);
+  border: 1px solid #d4af37; border-radius: 8px; z-index: 99998;
+  display: flex; flex-direction: column; box-shadow: 0 0 20px rgba(0,0,0,0.9);
+}
+.log-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; border-bottom: 1px solid #444; background: rgba(0,0,0,0.6); font-size: 0.8rem;
+}
+.log-btn { 
+  background: #333; color: #fff; border: 1px solid #555; border-radius: 3px; 
+  cursor: pointer; padding: 3px 8px; font-size: 0.7rem; margin-left: 5px; transition: 0.2s;
+}
+.log-btn:hover { background: #555; }
+.log-content {
+  flex-grow: 1; overflow-y: auto; padding: 10px; font-size: 0.7rem; color: #ccc;
+  line-height: 1.5; font-family: 'Courier New', Courier, monospace;
+}
+.log-entry { border-bottom: 1px dashed #333; padding-bottom: 5px; margin-bottom: 5px; }
+.log-time { color: #888; margin-right: 5px; }
+.log-player { color: #4cff4c; font-weight: bold; }
+.log-enemy { color: #ff4c4c; font-weight: bold; }
+.log-skill { color: #ffcc00; }
+.log-dmg { color: #ff3333; font-weight: bold; }
+.log-heal { color: #33ff33; font-weight: bold; }
+/* --- เอฟเฟกต์บัฟสเตตัส (เสาแสงพุ่งขึ้น) --- */
+.buff-aura {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to top, rgba(100, 255, 100, 0.6), transparent);
+  box-shadow: 0 0 20px #4cff4c;
+  border-radius: 8px;
+  z-index: 100;
+  pointer-events: none;
+  top: 0;
+  left: 0;
+  animation: buffGlow 0.7s ease-out forwards;
+}
+
+@keyframes buffGlow {
+  0% { transform: scale(1); opacity: 0; }
+  30% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1.2) translateY(-20px); opacity: 0; }
+}
+
+/* --- เอฟเฟกต์แสงวิ้งๆ บนมือตอนลดคูลดาวน์ --- */
+@keyframes handTwinkle {
+  0% { box-shadow: 0 0 0 rgba(255, 215, 0, 0); background: rgba(255, 215, 0, 0); }
+  50% { box-shadow: 0 0 30px rgba(255, 215, 0, 0.8), inset 0 0 20px rgba(255, 255, 255, 0.5); background: rgba(255, 215, 0, 0.2); }
+  100% { box-shadow: 0 0 0 rgba(255, 215, 0, 0); background: rgba(255, 215, 0, 0); }
+}
+.anim-hand-twinkle { 
+  animation: handTwinkle 0.8s ease-out; 
+  border-radius: 10px;
+}
+/* ========== BLOOD NOVA AOE EFFECT ========== */
+/* เลเยอร์หน้าจอเต็ม - เลือดท่วมจอ */
+.blood-nova-overlay {
+  position: fixed; inset: 0; z-index: 99990; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(180, 0, 0, 0.0) 0%, rgba(120, 0, 0, 0.6) 60%, rgba(60, 0, 0, 0.9) 100%);
+  animation: bloodOverlayPulse 1.8s ease-out forwards;
+}
+@keyframes bloodOverlayPulse {
+  0%   { opacity: 0; transform: scale(0.8); }
+  15%  { opacity: 1; transform: scale(1); }
+  60%  { opacity: 0.85; }
+  100% { opacity: 0; transform: scale(1.1); }
+}
+/* วงช็อคเวฟขยาย */
+.blood-shockwave {
+  position: fixed; border-radius: 50%; border: 4px solid rgba(220, 0, 0, 0.9);
+  pointer-events: none; z-index: 99991;
+  box-shadow: 0 0 30px rgba(255, 0, 0, 0.8), inset 0 0 30px rgba(180, 0, 0, 0.4);
+  animation: shockwaveExpand 1.2s ease-out forwards;
+}
+.blood-shockwave:nth-child(2) { animation-delay: 0.15s; border-color: rgba(200, 30, 30, 0.7); }
+.blood-shockwave:nth-child(3) { animation-delay: 0.30s; border-color: rgba(160, 0, 0, 0.5); }
+@keyframes shockwaveExpand {
+  0%   { width: 0px; height: 0px; margin-left: 0px; margin-top: 0px; opacity: 1; }
+  100% { width: 1400px; height: 1400px; margin-left: -700px; margin-top: -700px; opacity: 0; }
+}
+/* เลือดหยดตก (Blood Drops) */
+.blood-drop {
+  position: fixed; width: 8px; height: 8px;
+  background: radial-gradient(circle, #ff2020, #8b0000); border-radius: 50% 50% 50% 0;
+  pointer-events: none; z-index: 99992; box-shadow: 0 0 6px rgba(255,0,0,0.6);
+  animation: bloodDropFall var(--fall-dur, 1.2s) ease-in var(--fall-delay, 0s) forwards;
+  transform-origin: center;
+}
+@keyframes bloodDropFall {
+  0%   { transform: translate(0, 0) scale(1) rotate(var(--rot, 45deg)); opacity: 1; }
+  70%  { opacity: 1; }
+  100% { transform: translate(var(--tx, 0px), var(--ty, 200px)) scale(0.3) rotate(var(--rot2, 180deg)); opacity: 0; }
+}
+/* เส้นเลือดแตก (Blood Veins) ระหว่างไพ่ */
+.blood-vein {
+  position: fixed; height: 3px; background: linear-gradient(to right, transparent, #cc0000, #ff2020, #cc0000, transparent);
+  pointer-events: none; z-index: 99991; transform-origin: left center; box-shadow: 0 0 8px rgba(255, 0, 0, 0.7);
+  animation: veinSlash 0.6s ease-out var(--vein-delay, 0s) forwards;
+}
+@keyframes veinSlash {
+  0%   { transform: scaleX(0); opacity: 0; }
+  20%  { opacity: 1; }
+  100% { transform: scaleX(1) rotate(var(--vein-rot, 0deg)); opacity: 0; }
+}
+/* เอฟเฟคไพ่ถูกตี - สั่น + เลือดสาด */
+.blood-hit-flash {
+  position: absolute; inset: -5px; border-radius: 10px; pointer-events: none; z-index: 200;
+  background: radial-gradient(ellipse at center, rgba(255, 50, 50, 0.9) 0%, rgba(180, 0, 0, 0.6) 50%, transparent 100%);
+  animation: cardBloodHit 0.8s ease-out forwards;
+}
+@keyframes cardBloodHit {
+  0%   { opacity: 0; transform: scale(0.5); }
+  20%  { opacity: 1; transform: scale(1.3); }
+  50%  { transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+/* รอยเลือดค้างบนไพ่ */
+.blood-stain {
+  position: absolute; inset: 0; border-radius: 8px; pointer-events: none; z-index: 150;
+  background: radial-gradient(circle at 30% 40%, rgba(180,0,0,0.5) 0%, transparent 40%),
+              radial-gradient(circle at 70% 20%, rgba(150,0,0,0.4) 0%, transparent 30%),
+              radial-gradient(circle at 50% 80%, rgba(200,0,0,0.45) 0%, transparent 35%);
+  animation: bloodStainFade 3s ease-out forwards;
+}
+@keyframes bloodStainFade {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+/* ข้อความ BLOOD NOVA */
+.blood-nova-title {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 99995; pointer-events: none; text-align: center;
+  animation: bloodTitleAnim 2s ease-out forwards;
+}
+.blood-nova-title .title-main {
+  display: block; font-size: 5rem; font-weight: 900; font-family: 'Georgia', serif; letter-spacing: 0.15em; color: #fff;
+  text-shadow: 0 0 20px #ff0000, 0 0 40px #cc0000, 0 0 80px #880000, 3px 3px 0 #600000, 6px 6px 0 #400000;
+  -webkit-text-stroke: 2px #cc0000;
+}
+.blood-nova-title .title-sub {
+  display: block; font-size: 1.6rem; font-weight: 700; color: #ff6666; letter-spacing: 0.5em; text-shadow: 0 0 15px #ff0000; margin-top: -10px;
+}
+@keyframes bloodTitleAnim {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.3) rotate(-5deg); }
+  15%  { opacity: 1; transform: translate(-50%, -50%) scale(1.2) rotate(2deg); }
+  30%  { transform: translate(-50%, -50%) scale(0.95) rotate(0deg); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.1) rotate(0deg); }
+}
+/* Screen Shake */
+@keyframes screenShake {
+  0%,100% { transform: translate(0, 0) rotate(0deg); }
+  10% { transform: translate(-8px, -5px) rotate(-0.5deg); }
+  20% { transform: translate(8px, 5px) rotate(0.5deg); }
+  30% { transform: translate(-6px, 3px) rotate(-0.3deg); }
+  40% { transform: translate(6px, -3px) rotate(0.3deg); }
+  50% { transform: translate(-4px, 4px) rotate(-0.2deg); }
+  60% { transform: translate(4px, -2px) rotate(0.2deg); }
+  70% { transform: translate(-2px, 2px) rotate(-0.1deg); }
+  80% { transform: translate(2px, -2px) rotate(0.1deg); }
+  90% { transform: translate(-1px, 1px); }
+}
+.anim-screen-shake {
+  animation: screenShake 0.7s cubic-bezier(.36,.07,.19,.97) forwards;
+}
+/* ========== IMMORTAL TYRANT AOE EFFECT ========== */
+
+/* Overlay หน้าจอมืด - สีทอง-ดำศักดิ์สิทธิ์ */
+.tyrant-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  pointer-events: none;
+  background: 
+    radial-gradient(ellipse at 50% 30%, rgba(255,200,0,0.15) 0%, transparent 60%),
+    radial-gradient(ellipse at center, rgba(80,0,120,0.5) 0%, rgba(0,0,0,0.92) 100%);
+  animation: tyrantOverlayIn 2.4s ease-out forwards;
+}
+@keyframes tyrantOverlayIn {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* มงกุฎปรากฏกลางจอ */
+.tyrant-crown {
+  position: fixed;
+  top: 8%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 99996;
+  pointer-events: none;
+  font-size: 7rem;
+  filter: 
+    drop-shadow(0 0 20px rgba(255,200,0,0.9))
+    drop-shadow(0 0 50px rgba(200,100,0,0.7))
+    drop-shadow(0 0 100px rgba(255,180,0,0.4));
+  animation: crownDescend 2.4s cubic-bezier(0.16,1,0.3,1) forwards;
+  transform-origin: center top;
+}
+@keyframes crownDescend {
+  0%   { opacity: 0; top: -5%; transform: translateX(-50%) scale(0.3) rotate(-10deg); filter: brightness(3) drop-shadow(0 0 60px gold); }
+  20%  { opacity: 1; top: 8%;  transform: translateX(-50%) scale(1.15) rotate(2deg); }
+  35%  { top: 8%;  transform: translateX(-50%) scale(1) rotate(0deg); }
+  70%  { opacity: 1; }
+  100% { opacity: 0; top: 5%; transform: translateX(-50%) scale(1.05); }
+}
+
+/* ชื่อ IMMORTAL TYRANT */
+.tyrant-title {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 99995;
+  pointer-events: none;
+  text-align: center;
+  animation: tyrantTitleAnim 2.4s ease-out forwards;
+}
+.tyrant-title .title-main {
+  display: block;
+  font-size: 4.2rem;
+  font-weight: 900;
+  font-family: 'Georgia', 'Times New Roman', serif;
+  letter-spacing: 0.12em;
+  color: #ffd700;
+  text-shadow:
+    0 0 15px #ffcc00,
+    0 0 35px #cc8800,
+    0 0 70px #884400,
+    3px 3px 0 #3a2000,
+    6px 6px 0 #1a0800;
+  -webkit-text-stroke: 1.5px #aa6600;
+}
+.tyrant-title .title-sub {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 700;
+  letter-spacing: 0.7em;
+  color: #cc99ff;
+  text-shadow: 0 0 20px #9933ff, 0 0 40px #660099;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+.tyrant-title .title-souls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 14px;
+  font-size: 2.2rem;
+  animation: soulsReveal 0.6s ease-out 0.4s both;
+}
+@keyframes tyrantTitleAnim {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(0.2); }
+  18%  { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+  30%  { transform: translate(-50%, -50%) scale(0.97); }
+  65%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1.05); }
+}
+@keyframes soulsReveal {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* --- Tyrant of the Fallen: Devour entry --- */
+/* reuses tyrant-overlay + tyrantTitleAnim — เพิ่มแค่ text variant */
+.devour-title {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  text-align: center; pointer-events: none; z-index: 99998;
+  animation: tyrantTitleAnim 2.4s ease-out forwards;
+}
+.devour-title .title-main {
+  display: block; font-size: 2.8rem; font-weight: 900; letter-spacing: 4px;
+  color: #ff4400; text-shadow: 0 0 30px #ff2200, 0 0 60px #880000;
+}
+.devour-title .title-sub {
+  display: block; font-size: 1.1rem; color: #ff8844; letter-spacing: 2px;
+  margin-top: 8px; text-shadow: 0 0 10px #ff4400;
+}
+.devour-title .title-skulls { display:flex;justify-content:center;gap:10px;margin-top:12px;font-size:2rem;animation:soulsReveal 0.6s ease-out 0.4s both; }
+
+/* Soul Orb ลอยขึ้น (วิญญาณ 4 ดวง) */
+.soul-orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 99993;
+  animation: soulOrbRise var(--orb-dur, 1.5s) ease-out var(--orb-delay, 0s) forwards;
+}
+@keyframes soulOrbRise {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0); }
+  20%  { opacity: 1; transform: translate(var(--ox,0px), -30px) scale(1); }
+  70%  { opacity: 0.8; }
+  100% { opacity: 0; transform: translate(var(--ox,0px), var(--oy,-250px)) scale(0.5); }
+}
+
+/* รอยร้าวทองแตกออกจากผู้ร่าย (Golden Cracks) */
+.golden-crack {
+  position: fixed;
+  height: 3px;
+  background: linear-gradient(to right, transparent, #ffd700, #ffaa00, #ffd700, transparent);
+  pointer-events: none;
+  z-index: 99992;
+  box-shadow: 0 0 12px rgba(255, 200, 0, 0.9), 0 0 25px rgba(200, 100, 0, 0.5);
+  transform-origin: center left;
+  animation: crackSlash var(--crack-dur, 0.5s) ease-out var(--crack-delay, 0s) forwards;
+}
+@keyframes crackSlash {
+  0%   { width: 0; opacity: 1; }
+  60%  { opacity: 1; }
+  100% { width: var(--crack-w, 200px); opacity: 0; }
+}
+
+/* แสงพิพากษาพุ่งลงใส่ไพ่ (Divine Judgment Beam) */
+.judgment-beam {
+  position: fixed;
+  width: 60px;
+  pointer-events: none;
+  z-index: 99992;
+  background: linear-gradient(to bottom, 
+    rgba(255,220,0,0.9) 0%,
+    rgba(255,180,0,0.7) 30%,
+    rgba(200,100,255,0.5) 70%,
+    transparent 100%);
+  box-shadow: 0 0 20px rgba(255,200,0,0.6), 0 0 40px rgba(200,100,255,0.3);
+  border-radius: 30px 30px 0 0;
+  animation: beamStrike var(--beam-dur, 0.7s) ease-in var(--beam-delay, 0s) forwards;
+  transform-origin: top center;
+}
+@keyframes beamStrike {
+  0%   { transform: scaleY(0) scaleX(0.3); opacity: 0; }
+  15%  { transform: scaleY(0.3) scaleX(1.2); opacity: 1; }
+  40%  { transform: scaleY(1) scaleX(0.9); opacity: 1; }
+  100% { transform: scaleY(1) scaleX(0.6); opacity: 0; }
+}
+
+/* เอฟเฟคบนไพ่ที่โดน Judgment */
+.tyrant-hit-flash {
+  position: absolute;
+  inset: -8px;
+  border-radius: 12px;
+  pointer-events: none;
+  z-index: 200;
+  background: radial-gradient(ellipse at 50% 0%, 
+    rgba(255,220,0,0.95) 0%, 
+    rgba(180,80,255,0.6) 40%,
+    transparent 75%);
+  box-shadow: 0 0 30px rgba(255, 200, 0, 0.8), inset 0 0 20px rgba(255,180,0,0.5);
+  animation: tyrantCardHit 1s ease-out forwards;
+}
+@keyframes tyrantCardHit {
+  0%   { opacity: 0; transform: scale(0.6) translateY(-10px); }
+  20%  { opacity: 1; transform: scale(1.3) translateY(0); }
+  50%  { transform: scale(1.1); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* รอยแตกทองค้างบนไพ่ */
+.golden-stain {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  pointer-events: none;
+  z-index: 150;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255,200,0,0.5) 0%, transparent 50%),
+    radial-gradient(circle at 30% 60%, rgba(200,100,255,0.3) 0%, transparent 40%),
+    radial-gradient(circle at 75% 30%, rgba(255,150,0,0.35) 0%, transparent 35%);
+  animation: goldenStainFade 3.5s ease-out forwards;
+}
+@keyframes goldenStainFade {
+  0%   { opacity: 1; }
+  60%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+/* วงแสงทองพุ่งออก (Halo Pulse) */
+.halo-pulse {
+  position: fixed;
+  border-radius: 50%;
+  border: 3px solid rgba(255,200,0,0.8);
+  pointer-events: none;
+  z-index: 99991;
+  box-shadow: 0 0 20px rgba(255,200,0,0.6), inset 0 0 20px rgba(255,180,0,0.2);
+  animation: haloPulseExpand var(--halo-dur, 1.2s) ease-out var(--halo-delay, 0s) forwards;
+}
+@keyframes haloPulseExpand {
+  0%   { width: 20px; height: 20px; margin-left: -10px; margin-top: -10px; opacity: 1; }
+  100% { width: 1200px; height: 1200px; margin-left: -600px; margin-top: -600px; opacity: 0; border-color: rgba(180,80,255,0.3); }
+}
+
+/* Screen shake แบบ Tyrant (หนักกว่า Blood Nova) */
+@keyframes tyrantShake {
+  0%,100% { transform: translate(0,0) rotate(0deg); }
+  8%  { transform: translate(-12px, -8px) rotate(-1deg); }
+  16% { transform: translate(12px, 8px) rotate(1deg); }
+  24% { transform: translate(-10px, 5px) rotate(-0.7deg); }
+  32% { transform: translate(10px, -5px) rotate(0.7deg); }
+  40% { transform: translate(-7px, 7px) rotate(-0.5deg); }
+  48% { transform: translate(7px, -4px) rotate(0.5deg); }
+  56% { transform: translate(-5px, 5px) rotate(-0.3deg); }
+  64% { transform: translate(5px, -3px) rotate(0.3deg); }
+  72% { transform: translate(-3px, 3px) rotate(-0.2deg); }
+  80% { transform: translate(3px, -2px) rotate(0.1deg); }
+  90% { transform: translate(-1px, 1px); }
+}
+.anim-tyrant-shake {
+  animation: tyrantShake 0.9s cubic-bezier(.36,.07,.19,.97) forwards;
+}
+/* --- ย้ายปุ่มจบเทิร์นไปขวาล่าง (เหนือสุสาน) --- */
+#end-turn-btn {
+  position: fixed !important; /* บังคับให้ปุ่มลอยเป็นอิสระจากกรอบเดิม */
+  right: 190px !important;     /* ดันไปชิดขอบขวาจอ */
+  bottom: 100px !important;   /* ยกความสูงขึ้นมาให้อยู่เหนือปุ่มสุสาน */
+  margin: 0 !important;       /* ลบระยะห่างเดิมทิ้ง */
+  z-index: 9999 !important;   /* กันไม่ให้โดนไพ่หรือเอฟเฟกต์บัง */
+}
+/* ========== ระบบสถิติ (Combat Stats) ========== */
+.stats-toggle-btn {
+  position: fixed; right: 20px; top: 50px; background: rgba(15, 15, 20, 0.9);
+  color: #4cff4c; border: 1px solid #4cff4c; padding: 10px 15px; border-radius: 8px;
+  cursor: pointer; font-size: 0.85rem; font-weight: bold; z-index: 99999;
+  box-shadow: 0 0 15px rgba(76, 255, 76, 0.3); transition: 0.3s;
+}
+.stats-toggle-btn:hover { background: #4cff4c; color: #000; box-shadow: 0 0 20px rgba(76, 255, 76, 0.8); }
+.stats-container {
+  position: fixed; right: 20px; top: 70px; width: 340px; max-height: 60vh;
+  background: rgba(10, 10, 15, 0.95); border: 2px solid #d4af37; border-radius: 10px;
+  z-index: 99998; display: none; flex-direction: column; box-shadow: 0 0 30px rgba(0,0,0,0.9);
+}
+.stats-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 15px; border-bottom: 1px solid #444; background: rgba(0,0,0,0.8);
+  color: #d4af37; font-weight: bold; font-size: 0.9rem; border-radius: 8px 8px 0 0;
+}
+.stats-content { flex-grow: 1; overflow-y: auto; padding: 15px; }
+.stat-card-row { margin-bottom: 15px; font-size: 0.75rem; font-family: sans-serif; background: rgba(255,255,255,0.05); padding: 8px; border-radius: 5px; }
+.stat-name { font-weight: bold; margin-bottom: 5px; font-size: 0.8rem; }
+.stat-bar-bg { width: 100%; background: #222; border-radius: 4px; margin-bottom: 4px; overflow: hidden; position: relative; height: 14px; }
+.stat-bar-fill { height: 100%; position: absolute; left: 0; top: 0; display: flex; align-items: center; padding-left: 5px; color: #000; font-weight: bold; font-size: 0.65rem; white-space: nowrap; transition: width 0.5s ease-out; }
+.fill-dmg { background: linear-gradient(90deg, #ff3333, #ff6666); }
+.fill-tank { background: linear-gradient(90deg, #888888, #bbbbbb); }
+.fill-heal { background: linear-gradient(90deg, #33ff33, #88ff88); }
+/* ── Shadow Stealth card state ─────────────────────────────
+   Ghost Zero เมื่ออยู่ในโหมดซ่อนตัว                        */
+.shadow-stealth {
+  border: 2px solid #00f5ff !important;
+  box-shadow:
+    0 0 18px rgba(0, 245, 255, 0.7),
+    inset 0 0 15px rgba(0, 100, 200, 0.4) !important;
+  animation: shadowPulse 1.8s ease-in-out infinite alternate;
+}
+@keyframes shadowPulse {
+  0%   { box-shadow: 0 0 12px rgba(0,245,255,.5), inset 0 0 10px rgba(0,100,200,.3); }
+  100% { box-shadow: 0 0 30px rgba(0,245,255,.9), inset 0 0 20px rgba(0,150,255,.6); }
+}
+
+/* ── HP bar smooth width transition ────────────────────────
+   ทำให้ HP bar ค่อยๆ หายออกอย่าง smooth                     */
+.hp-bar-fill {
+  transition: width .45s ease-out, background-color .3s;
+}
+
+/* ── Turn Counter (injected via JS) ────────────────────────
+   Fixed top-center display                                    */
+#turn-counter {
+  font-family: 'Segoe UI', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* ── End Screen button hover ───────────────────────────────
+   (JS sets inline styles, this reinforces transitions)       */
+
+/* ── Airstrike flash overlay ───────────────────────────────
+   เอฟเฟกต์แสงจ้าจากระเบิด Airstrike                         */
+.airstrike-flash {
+  position: fixed;
+  inset: 0;
+  z-index: 99993;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    rgba(255,200,100,.5) 0%,
+    rgba(255,100,0,.3)   40%,
+    transparent          80%);
+  animation: airstrikeFlash 1.2s ease-out forwards;
+}
+@keyframes airstrikeFlash {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  50%  { opacity: .7; }
+  100% { opacity: 0; }
+}
+
+/* ── Burn card visual state ────────────────────────────────
+   การ์ดที่โดน Burn จะมีออร่าไฟรอบๆ                          */
+.card.burn-active {
+  box-shadow:
+    0 0 15px rgba(255, 69, 0, .7),
+    inset 0 0 10px rgba(255, 100, 0, .3) !important;
+  border-color: #ff4500 !important;
+  animation: burnFlicker 1s ease-in-out infinite alternate;
+}
+@keyframes burnFlicker {
+  0%   { box-shadow: 0 0 10px rgba(255,69,0,.5), inset 0 0 8px rgba(255,100,0,.2); }
+  100% { box-shadow: 0 0 25px rgba(255,69,0,.9), inset 0 0 15px rgba(255,50,0,.5); }
+}
+
+/* ── Battle Hardened stack glow ────────────────────────────
+   Iron Sentinel ยิ่ง stack เยอะ ยิ่งเขียวสว่าง              */
+.card.sentinel-max {
+  box-shadow:
+    0 0 25px rgba(0, 255, 136, .8),
+    inset 0 0 15px rgba(0, 200, 100, .4) !important;
+  border-color: #00ff88 !important;
+}
+
+/* ── Status icons: สวยขึ้น ─────────────────────────────────
+   เพิ่ม transition และ hover effect                         */
+.status-icon {
+  transition: transform .15s ease, box-shadow .15s ease;
+  cursor: help;
+}
+.status-icon:hover {
+  transform: scale(1.3);
+  box-shadow: 0 0 10px rgba(255,255,255,.5);
+  z-index: 200;
+}
+
+/* ── Card HP bar container (board only) ────────────────────
+   เส้น HP bar ด้านล่าง overlay ของการ์ดในสนาม              */
+.hp-bar-wrap {
+  width: 100%;
+  height: 4px;
+  background: #1a1a1a;
+  border-radius: 2px;
+  margin-top: 3px;
+  overflow: hidden;
+}
+.hp-bar-fill-el {
+  height: 100%;
+  border-radius: 2px;
+  transition: width .4s ease, background .3s;
+}
+
+/* ── Shadow Protocol "Ready" state border ──────────────────
+   Ghost Zero ตอนพร้อม Shadow Strike                         */
+.card.shadow-ready {
+  border: 2px solid #00f5ff !important;
+  box-shadow:
+    0 0 20px rgba(0, 245, 255, .9),
+    0 0 50px rgba(0, 150, 255, .5) !important;
+  animation: shadowReadyPulse .8s ease-in-out infinite alternate;
+}
+@keyframes shadowReadyPulse {
+  0%   { box-shadow: 0 0 15px rgba(0,245,255,.7); }
+  100% { box-shadow: 0 0 35px rgba(0,245,255,1), 0 0 70px rgba(0,150,255,.6); }
+}
+
+/* ── Improved card hover on board ──────────────────────────
+   การ์ดในสนามตอนชี้เมาส์                                    */
+.player-board .card-slot:hover,
+.enemy-board  .card-slot:hover {
+  border-color: rgba(212, 175, 55, .6) !important;
+  transition: border-color .2s;
+}
+
+/* ── Log section divider per turn ──────────────────────────
+   เส้นแบ่ง turn ใน battle log                               */
+.log-entry:has(.log-player):first-of-type {
+  border-top: 1px solid #333;
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+/* ── Stats bar micro-animation ─────────────────────────────
+   stat bars ขยายตัวเมื่อแสดง                                */
+.stat-bar-fill {
+  animation: statBarGrow .6s ease-out backwards;
+}
+@keyframes statBarGrow {
+  from { width: 0 !important; opacity: 0; }
+}
+/* ✅ เพิ่มสีเหลือง/ทอง สำหรับสกิลดูดเลือดโดยเฉพาะ */
+.drain-text { color: #ffd700; font-weight: bold; }
+
+/* =========================================
+   ⚔️ LOA CLASSIC ATTACK ANIMATION ⚔️
+========================================= */
+
+/* Hero เป็น relative เพื่อรองรับ impact claw */
+.hero { position: relative; }
+
+/* 1. The Leap & The Recoil — พุ่งปะทะ 175ms แล้วดีดกลับ */
+@keyframes loaAttackUp {
+  0%   { transform: translateY(0) scale(1); }
+  20%  { transform: translateY(15px) scale(1.05); }
+  50%  { transform: translateY(-120px) scale(1.15) rotate(-2deg); }
+  70%  { transform: translateY(-110px) scale(1.2); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes loaAttackDown {
+  0%   { transform: translateY(0) scale(1); }
+  20%  { transform: translateY(-15px) scale(1.05); }
+  50%  { transform: translateY(120px) scale(1.15) rotate(2deg); }
+  70%  { transform: translateY(110px) scale(1.2); }
+  100% { transform: translateY(0) scale(1); }
+}
+/* ระยะเวลา 350ms → impact point = 175ms พอดีตรงจังหวะ */
+.anim-loa-attack-up   { animation: loaAttackUp   calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+.anim-loa-attack-down { animation: loaAttackDown calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
+
+/* Motion Blur ตอนพุ่ง */
+.card.anim-loa-attack-up,
+.card.anim-loa-attack-down {
+  filter: blur(1px);
+}
+
+/* The Impact — รอย slash 3 เส้น */
+.claw-slash {
+  position: absolute;
+  width: 80px;
+  height: 6px;
+  background: linear-gradient(90deg, #fff, #ff3b3b);
+  border-radius: 5px;
+  box-shadow: 0 0 10px #ff0000;
+  transform: rotate(-25deg);
+  animation: slashFade calc(0.35s / var(--speed)) forwards;
+  pointer-events: none;
+  z-index: 100;
+}
+@keyframes slashFade {
+  0%   { opacity: 1; transform: scale(0.5) rotate(-25deg); }
+  100% { opacity: 0; transform: scale(1.6) rotate(-25deg); }
+}
+
+/* Hit Shake ตอนโดนตี */
+@keyframes hitShake {
+  0%   { transform: translateX(0); }
+  25%  { transform: translateX(-5px); }
+  50%  { transform: translateX(5px); }
+  75%  { transform: translateX(-3px); }
+  100% { transform: translateX(0); }
+}
+.hit-shake { animation: hitShake calc(0.2s / var(--speed)); }
+
+
+
+/* ── Final Judgement overlay + title ──────────────────────── */
+.fj-overlay {
+  position: fixed; inset: 0; z-index: 99990; pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(10,0,30,0.55) 60%, rgba(0,0,0,0.85) 100%);
+  animation: riftOverlayPulse 1.8s ease-out forwards;
+}
+.fj-title {
+  position: fixed; top: 46%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 99996; pointer-events: none; text-align: center;
+  animation: riftTitleAnim 2.2s ease-out forwards;
+}
+.fj-title .fjt-main {
+  display: block; font-size: 3.6rem; font-weight: 900; font-family: 'Georgia', serif;
+  letter-spacing: 0.1em; color: #c8b0ff;
+  text-shadow: 0 0 15px #9933ff, 0 0 35px #6600cc, 0 0 70px #330066;
+  -webkit-text-stroke: 1.5px #660099;
+}
+.fj-title .fjt-sub {
+  display: block; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.6em;
+  color: #888; text-shadow: 0 0 10px #444; margin-top: 6px; text-transform: uppercase;
+}
+
+/* ═══════════════════════════════════════════════════
+   ⏳ CHRONO ARBITER — SKILL EFFECTS
+   ═══════════════════════════════════════════════════ */
+
+/* --- Temporal Summon: hourglass beam + shield burst --- */
+.temporal-beam {
+  position: fixed; pointer-events: none; z-index: 99992;
+  width: 4px; border-radius: 4px;
+  background: linear-gradient(to bottom, rgba(180,220,255,0.9), rgba(80,160,255,0.5), transparent);
+  box-shadow: 0 0 10px rgba(130,200,255,0.8), 0 0 22px rgba(60,140,255,0.4);
+  transform-origin: top center;
+  animation: temporalBeamFlash var(--tb-dur,0.7s) ease-out var(--tb-delay,0s) forwards;
+}
+@keyframes temporalBeamFlash {
+  0%   { opacity: 0; transform: scaleY(0); }
+  15%  { opacity: 1; transform: scaleY(1); }
+  70%  { opacity: 0.8; }
+  100% { opacity: 0; transform: scaleY(1) scaleX(0.3); }
+}
+
+.temporal-gear {
+  position: fixed; pointer-events: none; z-index: 99993; font-size: 1.4rem;
+  filter: drop-shadow(0 0 5px rgba(160,220,255,0.9));
+  animation: gearSpin var(--gear-dur,1.1s) ease-out var(--gear-delay,0s) forwards;
+}
+@keyframes gearSpin {
+  0%   { opacity: 0; transform: translate(0,0) scale(0) rotate(0deg); }
+  20%  { opacity: 1; transform: translate(var(--gx,0px), var(--gy,0px)) scale(1.1) rotate(120deg); }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(var(--gx,0px), var(--gy,-50px)) scale(0.3) rotate(360deg); }
+}
+
+.shield-burst {
+  position: absolute; inset: -8px; border-radius: 14px; pointer-events: none; z-index: 200;
+  border: 2px solid rgba(200,230,255,0.9);
+  box-shadow: 0 0 18px rgba(150,210,255,0.8), inset 0 0 12px rgba(100,180,255,0.4);
+  animation: shieldBurstAnim 1.2s ease-out forwards;
+}
+@keyframes shieldBurstAnim {
+  0%   { opacity: 0; transform: scale(0.6); }
+  20%  { opacity: 1; transform: scale(1.12); }
+  55%  { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.06); }
+}
+
+/* --- Restoration Pulse: heal ring + heart particles --- */
+.restore-ring {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99991;
+  border: 3px solid rgba(255,140,180,0.85);
+  box-shadow: 0 0 16px rgba(255,100,160,0.6), inset 0 0 10px rgba(255,180,200,0.2);
+  animation: restoreRingExpand var(--rr-dur,1.0s) ease-out var(--rr-delay,0s) forwards;
+}
+@keyframes restoreRingExpand {
+  0%   { width: 8px; height: 8px; margin-left: -4px; margin-top: -4px; opacity: 1; }
+  100% { width: 380px; height: 380px; margin-left: -190px; margin-top: -190px; opacity: 0;
+         border-color: rgba(200,100,160,0.2); }
+}
+
+.restore-beam {
+  position: fixed; pointer-events: none; z-index: 99992; height: 3px; border-radius: 3px;
+  background: linear-gradient(to right, rgba(255,140,180,0.9), rgba(255,200,220,0.6), transparent);
+  box-shadow: 0 0 10px rgba(255,120,170,0.7);
+  transform-origin: left center;
+  animation: restoreBeamAnim var(--rb-dur,0.6s) ease-out var(--rb-delay,0s) forwards;
+}
+@keyframes restoreBeamAnim {
+  0%   { opacity: 0; transform: scaleX(0); }
+  20%  { opacity: 1; transform: scaleX(1); }
+  70%  { opacity: 0.8; }
+  100% { opacity: 0; transform: scaleX(1) translateY(-8px); }
+}
+
+.heart-particle {
+  position: fixed; pointer-events: none; z-index: 99993; font-size: 1.1rem;
+  filter: drop-shadow(0 0 5px rgba(255,100,150,0.9));
+  animation: heartRise var(--hp-dur,1.2s) ease-out var(--hp-delay,0s) forwards;
+}
+@keyframes heartRise {
+  0%   { opacity: 0; transform: translate(0,0) scale(0); }
+  20%  { opacity: 1; transform: translate(var(--hx,0px), -15px) scale(1.2); }
+  100% { opacity: 0; transform: translate(var(--hx,0px), var(--hy,-90px)) scale(0.5); }
+}
+
+/* ═══════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════
+   🐉 VOID DRAGON — SKILL EFFECTS
+   ═══════════════════════════════════════════════════ */
+
+/* Corrupt status: card border flickers violet-black */
+.card.corrupt-active {
+  border-color: #9b00ff !important;
+  box-shadow: 0 0 18px rgba(130,0,255,0.7), inset 0 0 12px rgba(80,0,180,0.4) !important;
+  animation: corruptFlicker 1.2s ease-in-out infinite alternate;
+}
+@keyframes corruptFlicker {
+  0%   { box-shadow: 0 0 12px rgba(100,0,200,0.5), inset 0 0 8px rgba(60,0,140,0.3); }
+  100% { box-shadow: 0 0 28px rgba(160,0,255,0.9), inset 0 0 18px rgba(100,0,220,0.6); }
+}
+
+/* --- Void Breath AOE --- */
+.void-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 99990;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0) 0%, rgba(40,0,80,0.55) 55%, rgba(0,0,0,0.88) 100%);
+  animation: voidOverlayPulse 2s ease-out forwards;
+}
+@keyframes voidOverlayPulse {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  65%  { opacity: 0.9; }
+  100% { opacity: 0; }
+}
+
+.void-shockwave {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99991;
+  border: 3px solid rgba(140,0,255,0.85);
+  box-shadow: 0 0 25px rgba(120,0,240,0.7), inset 0 0 20px rgba(60,0,140,0.3);
+  animation: voidShockwaveExpand var(--vs-dur,1.2s) ease-out var(--vs-delay,0s) forwards;
+}
+@keyframes voidShockwaveExpand {
+  0%   { width: 0; height: 0; margin-left: 0; margin-top: 0; opacity: 1; }
+  100% { width: 1200px; height: 1200px; margin-left: -600px; margin-top: -600px; opacity: 0;
+         border-color: rgba(60,0,120,0.2); }
+}
+
+.void-breath-title {
+  position: fixed; top: 46%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 99995; pointer-events: none; text-align: center;
+  animation: voidTitleAnim 2.2s ease-out forwards;
+}
+.void-breath-title .vt-main {
+  display: block; font-size: 3.8rem; font-weight: 900; font-family: 'Georgia', serif;
+  letter-spacing: 0.09em; color: #cc66ff;
+  text-shadow: 0 0 15px #aa00ff, 0 0 35px #6600cc, 0 0 75px #330066;
+  -webkit-text-stroke: 1.5px #770099;
+}
+.void-breath-title .vt-sub {
+  display: block; font-size: 1.1rem; font-weight: 700; letter-spacing: 0.6em;
+  color: #888; text-shadow: 0 0 10px #440066; margin-top: 5px; text-transform: uppercase;
+}
+@keyframes voidTitleAnim {
+  0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.2) rotate(-6deg); }
+  15%  { opacity: 1; transform: translate(-50%,-50%) scale(1.1) rotate(1deg); }
+  30%  { transform: translate(-50%,-50%) scale(0.97) rotate(0deg); }
+  65%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.04); }
+}
+
+.void-hit-flash {
+  position: absolute; inset: -6px; border-radius: 12px; pointer-events: none; z-index: 200;
+  background: radial-gradient(ellipse at center,
+    rgba(160,0,255,0.9) 0%, rgba(80,0,180,0.55) 45%, transparent 80%);
+  box-shadow: 0 0 22px rgba(140,0,240,0.7);
+  animation: voidHitFlash 0.9s ease-out forwards;
+}
+@keyframes voidHitFlash {
+  0%   { opacity: 0; transform: scale(0.5); }
+  20%  { opacity: 1; transform: scale(1.25); }
+  55%  { transform: scale(1.05); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+.corrupt-stain {
+  position: absolute; inset: 0; border-radius: 8px; pointer-events: none; z-index: 150;
+  background: radial-gradient(circle at 40% 30%, rgba(100,0,180,0.45) 0%, transparent 40%),
+              radial-gradient(circle at 70% 65%, rgba(80,0,160,0.35) 0%, transparent 35%),
+              radial-gradient(circle at 25% 70%, rgba(120,0,200,0.4) 0%, transparent 30%);
+  animation: corruptStainFade 3s ease-out forwards;
+}
+@keyframes corruptStainFade {
+  0%   { opacity: 1; }
+  60%  { opacity: 0.6; }
+  100% { opacity: 0; }
+}
+
+/* --- Abyss Devour: soul absorption --- */
+.devour-orb {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99993;
+  background: radial-gradient(circle, #fff 10%, #cc44ff 45%, rgba(80,0,180,0.2) 100%);
+  box-shadow: 0 0 16px #aa00ff, 0 0 32px rgba(120,0,220,0.4);
+  animation: devourOrbSuck var(--do-dur,0.8s) ease-in var(--do-delay,0s) forwards;
+}
+@keyframes devourOrbSuck {
+  0%   { opacity: 0; transform: scale(0) translate(0,0); }
+  20%  { opacity: 1; transform: scale(1.1) translate(0,0); }
+  100% { opacity: 0; transform: scale(0.1) translate(var(--do-tx,0px), var(--do-ty,0px)); }
+}
+
+/* --- Cataclysm Singularity death --- */
+.singularity-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 99990;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.95) 0%, rgba(20,0,40,0.8) 50%, rgba(0,0,0,0.97) 100%);
+  animation: singularityOverlay 3s ease-out forwards;
+}
+@keyframes singularityOverlay {
+  0%   { opacity: 0; }
+  10%  { opacity: 1; }
+  70%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.singularity-core {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99994;
+  background: radial-gradient(circle, #fff 5%, #cc00ff 25%, #4400aa 55%, #000 80%, transparent 100%);
+  box-shadow: 0 0 60px #aa00ff, 0 0 120px #6600cc, inset 0 0 50px #000;
+  animation: singularityCoreExpand 2.8s cubic-bezier(0.16,1,0.3,1) forwards;
+}
+@keyframes singularityCoreExpand {
+  0%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  12%  { opacity: 1; transform: scale(1.2) rotate(60deg); }
+  35%  { transform: scale(0.9) rotate(180deg); }
+  70%  { transform: scale(1.1) rotate(540deg); opacity: 1; }
+  100% { transform: scale(0) rotate(1080deg); opacity: 0; }
+}
+
+.singularity-ring {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99992;
+  border: 4px solid rgba(180,0,255,0.9);
+  box-shadow: 0 0 30px rgba(160,0,240,0.7), inset 0 0 30px rgba(80,0,160,0.3);
+  animation: singularityRingPulse var(--sr-dur,1.5s) ease-out var(--sr-delay,0s) forwards;
+}
+@keyframes singularityRingPulse {
+  0%   { width: 20px; height: 20px; margin-left:-10px; margin-top:-10px; opacity: 1; }
+  100% { width: 1600px; height: 1600px; margin-left:-800px; margin-top:-800px; opacity: 0;
+         border-color: rgba(60,0,120,0.15); }
+}
+
+.singularity-title {
+  position: fixed; top: 46%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 99996; pointer-events: none; text-align: center;
+  animation: voidTitleAnim 3s ease-out forwards;
+}
+.singularity-title .st-main {
+  display: block; font-size: 3.4rem; font-weight: 900; font-family: 'Georgia', serif;
+  letter-spacing: 0.08em; color: #fff;
+  text-shadow: 0 0 20px #cc00ff, 0 0 50px #8800cc, 0 0 100px #440066, 4px 4px 0 #220033;
+  -webkit-text-stroke: 1.5px #880099;
+}
+.singularity-title .st-sub {
+  display: block; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.65em;
+  color: #bb66ff; text-shadow: 0 0 15px #8800ff; margin-top: 6px; text-transform: uppercase;
+}
+
+.singularity-decay-flash {
+  position: absolute; inset: -8px; border-radius: 14px; pointer-events: none; z-index: 200;
+  background: radial-gradient(ellipse at center, rgba(200,0,255,0.95) 0%, rgba(100,0,200,0.5) 45%, transparent 80%);
+  box-shadow: 0 0 35px rgba(180,0,255,0.8);
+  animation: singularityCardHit 1.2s ease-out forwards;
+}
+@keyframes singularityCardHit {
+  0%   { opacity: 0; transform: scale(0.4) rotate(-10deg); }
+  18%  { opacity: 1; transform: scale(1.35) rotate(3deg); }
+  50%  { transform: scale(1.08) rotate(0deg); }
+  100% { opacity: 0; transform: scale(1); }
+}
+
+/* ═══════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════
+   🌀 CHRONOVEX RIFT CONDUCTOR — SKILL EFFECTS
+   ═══════════════════════════════════════════════════ */
+
+/* --- Rift Deployment: Portal opening --- */
+.rift-overlay {
+  position: fixed; inset: 0; pointer-events: none; z-index: 99990;
+  background: radial-gradient(ellipse at center, rgba(0,200,255,0.08) 0%, rgba(0,50,180,0.18) 50%, transparent 80%);
+  animation: riftOverlayPulse 2s ease-out forwards;
+}
+@keyframes riftOverlayPulse {
+  0%   { opacity: 0; }
+  15%  { opacity: 1; }
+  70%  { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+.rift-portal {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99993;
+  background: radial-gradient(circle, #000 18%, #00ccff 45%, #0044ff 72%, transparent 100%);
+  box-shadow: 0 0 50px #00eeff, 0 0 100px #0055ff, inset 0 0 40px #000;
+  animation: riftPortalOpen var(--portal-dur, 1.8s) cubic-bezier(0.16,1,0.3,1) forwards;
+}
+@keyframes riftPortalOpen {
+  0%   { opacity: 0; transform: scale(0) rotate(-60deg); }
+  18%  { opacity: 1; transform: scale(1.12) rotate(20deg); }
+  40%  { transform: scale(0.95) rotate(0deg); }
+  75%  { opacity: 1; transform: scale(1) rotate(0deg); }
+  100% { opacity: 0; transform: scale(0.15) rotate(180deg); }
+}
+
+.rift-ring {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99992;
+  border: 3px solid rgba(0, 230, 255, 0.85);
+  box-shadow: 0 0 18px #00eeff, inset 0 0 18px rgba(0,80,255,0.25);
+  animation: riftRingExpand var(--ring-dur, 1.2s) ease-out var(--ring-delay, 0s) forwards;
+}
+@keyframes riftRingExpand {
+  0%   { width: 10px; height: 10px; margin-left: -5px; margin-top: -5px; opacity: 1; }
+  100% { width: 900px; height: 900px; margin-left: -450px; margin-top: -450px; opacity: 0;
+         border-color: rgba(80,150,255,0.2); }
+}
+
+.rift-title {
+  position: fixed; top: 44%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 99995; pointer-events: none; text-align: center;
+  animation: riftTitleAnim 2.2s ease-out forwards;
+}
+.rift-title .rt-main {
+  display: block; font-size: 3.8rem; font-weight: 900; font-family: 'Georgia', serif;
+  letter-spacing: 0.08em; color: #00ffff;
+  text-shadow: 0 0 15px #00ffff, 0 0 35px #0099ff, 0 0 70px #0044ff;
+  -webkit-text-stroke: 1.5px #007799;
+}
+.rift-title .rt-sub {
+  display: block; font-size: 1.15rem; font-weight: 700; letter-spacing: 0.55em;
+  color: #88ddff; text-shadow: 0 0 12px #00aaff; margin-top: 4px; text-transform: uppercase;
+}
+@keyframes riftTitleAnim {
+  0%   { opacity: 0; transform: translate(-50%,-50%) scale(0.25) rotate(-8deg); }
+  15%  { opacity: 1; transform: translate(-50%,-50%) scale(1.12) rotate(1deg); }
+  30%  { transform: translate(-50%,-50%) scale(0.97) rotate(0deg); }
+  65%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(-50%,-50%) scale(1.05); }
+}
+
+/* --- Temporal Acceleration: gold time sweep --- */
+.time-accel-sweep {
+  position: fixed; inset: 0; pointer-events: none; z-index: 99990;
+  background: linear-gradient(100deg, transparent 0%, rgba(255,210,0,0.18) 45%, rgba(255,255,180,0.12) 55%, transparent 100%);
+  animation: timeAccelSweep 0.9s ease-in-out forwards;
+}
+@keyframes timeAccelSweep {
+  0%   { transform: translateX(-110%); opacity: 0; }
+  25%  { opacity: 1; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+
+.time-clock-particle {
+  position: fixed; pointer-events: none; z-index: 99993; font-size: 1.6rem;
+  filter: drop-shadow(0 0 6px rgba(255,200,0,0.9));
+  animation: clockFloat var(--clk-dur, 1.3s) ease-out var(--clk-delay, 0s) forwards;
+}
+@keyframes clockFloat {
+  0%   { opacity: 0; transform: translate(0,0) scale(0) rotate(0deg); }
+  18%  { opacity: 1; transform: translate(var(--clk-x,0px), -25px) scale(1.2) rotate(30deg); }
+  100% { opacity: 0; transform: translate(var(--clk-x,0px), var(--clk-y,-100px)) scale(0.4) rotate(180deg); }
+}
+
+/* --- Grave Contract: spectral pillar --- */
+.grave-contract-pillar {
+  position: fixed; width: 70px; pointer-events: none; z-index: 99992; border-radius: 35px;
+  background: linear-gradient(to top, rgba(0,255,100,0.9) 0%, rgba(120,255,180,0.6) 55%, transparent 100%);
+  box-shadow: 0 0 30px rgba(0,255,120,0.75), 0 0 60px rgba(0,200,80,0.3);
+  transform-origin: bottom center;
+  animation: contractPillar var(--pillar-dur, 1.5s) ease-out var(--pillar-delay, 0s) forwards;
+}
+@keyframes contractPillar {
+  0%   { transform: scaleY(0) scaleX(0.4); opacity: 0; }
+  18%  { transform: scaleY(1) scaleX(1); opacity: 1; }
+  70%  { opacity: 0.9; }
+  100% { transform: scaleY(1.3) scaleX(0.6) translateY(-40px); opacity: 0; }
+}
+.grave-soul-orb {
+  position: fixed; border-radius: 50%; pointer-events: none; z-index: 99993;
+  background: radial-gradient(circle, #afffcf 20%, #00ff88 55%, rgba(0,200,80,0.2) 100%);
+  box-shadow: 0 0 20px #00ff88, 0 0 40px rgba(0,200,80,0.5);
+  animation: graveSoulRise var(--gs-dur, 1.4s) ease-out var(--gs-delay, 0s) forwards;
+}
+@keyframes graveSoulRise {
+  0%   { opacity: 0; transform: translate(0,0) scale(0); }
+  20%  { opacity: 1; transform: translate(var(--gs-x,0px), -30px) scale(1); }
+  80%  { opacity: 0.7; }
+  100% { opacity: 0; transform: translate(var(--gs-x,0px), var(--gs-y,-180px)) scale(0.3); }
+}
+
+/* ═══════════════════════════════════════════════════ */
+
+/* 🌌 เอฟเฟกต์ Final Judgement (หลุมดำมิติ) 🌌 */
+.blackhole-vortex {
+  position: absolute; top: 50%; left: 50%;
+  width: 150px; height: 150px;
+  margin-top: -75px; margin-left: -75px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, #000 20%, #2b00ff 60%, transparent 80%);
+  box-shadow: 0 0 40px #4b0082, inset 0 0 30px #000;
+  z-index: 150; pointer-events: none;
+  animation: spawnVortex 1.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+.blackhole-particles {
+  position: absolute; top: 50%; left: 50%;
+  width: 200px; height: 200px;
+  margin-top: -100px; margin-left: -100px;
+  border-radius: 50%;
+  border: 2px dashed #8a2be2;
+  z-index: 140; pointer-events: none;
+  animation: spinParticles 1.5s linear forwards;
+}
+
+@keyframes spawnVortex {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  20% { transform: scale(1.2) rotate(180deg); opacity: 1; }
+  80% { transform: scale(1) rotate(720deg); opacity: 1; }
+  100% { transform: scale(0) rotate(1080deg); opacity: 0; }
+}
+@keyframes spinParticles {
+  0% { transform: scale(0) rotate(0deg); opacity: 0; }
+  20% { transform: scale(1) rotate(-90deg); opacity: 1; }
+  80% { transform: scale(0.5) rotate(-360deg); opacity: 1; }
+  100% { transform: scale(0) rotate(-720deg); opacity: 0; }
+}
+
+/* ✅ คลาสสำหรับบิดการ์ดให้โดนดูดเข้าไปในหลุมดำ */
+.anim-sucked-in {
+  animation: suckIntoVoid 1s ease-in forwards !important;
+}
+@keyframes suckIntoVoid {
+  0% { transform: scale(1) rotate(0deg); filter: blur(0) brightness(1); }
+  50% { transform: scale(0.5) rotate(180deg); filter: blur(2px) brightness(0.5) hue-rotate(90deg); }
+  100% { transform: scale(0) rotate(720deg); filter: blur(10px) brightness(0); opacity: 0; }
+}
+/* ✅ อัปเกรดระบบดาว ให้บีบซ้อนกันสวยๆ และไม่ทะลุ */
+.card-stars { 
+  position: absolute; 
+  top: 4px; 
+  right: 5px; 
+  font-size: 0.6rem; /* ปรับขนาดให้พอดีตา */
+  color: #ffd700; 
+  text-shadow: 1px 1px 2px #000, 0 0 4px #ffaa00; /* เพิ่มแสงเงาให้ดูขลัง */
+  z-index: 5; /* ให้อยู่ต่ำกว่าป้าย Wait Time */
+  letter-spacing: -3px; /* 🔥 บีบดาวให้ซ้อนกันนิดๆ ช่วยประหยัดพื้นที่และดูเท่ขึ้น */
+  white-space: nowrap; /* บังคับห้ามตกบรรทัด */
+  pointer-events: none;
+}
+
+/* ✅ ดันป้าย Wait Time ให้อยู่บนสุดเสมอ */
+.wait-time { 
+  position: absolute; 
+  top: 3px; 
+  left: 3px; 
+  background-color: #333; 
+  color: #eee; 
+  border-radius: 4px; 
+  padding: 2px 5px; 
+  font-size: 0.7rem; 
+  font-weight: bold; 
+  border: 1px solid #d4af37;
+  z-index: 10 !important; /* 🔥 ทับดาวไปเลยถ้ามันยาวมาชน */
+  box-shadow: 2px 2px 5px rgba(0,0,0,0.8); /* เพิ่มเงาให้ตัวเลขดูเด้งออกมา */
+}
+/* ✅ อัปเกรดดาวเรืองแสง + ตัดขอบไม่ให้บัง CD ตามสั่งบอส! */
+.card-stars { 
+  position: absolute; 
+  top: 4px; 
+  right: 5px; 
+  font-size: 0.65rem; 
+  color: #ffd700; 
+  z-index: 5; 
+  letter-spacing: -2px; /* บีบนิดๆ พอสวยงาม */
+  white-space: nowrap; 
+  pointer-events: none;
+  
+  /* 🔥 ของใหม่จากบอส โคตรตึง! */
+  filter: drop-shadow(0 0 3px gold) drop-shadow(1px 1px 1px rgba(0,0,0,0.8)); /* เรืองแสงสีทอง + มีเงาดำบางๆ ให้ดาวตัดกับฉากหลัง */
+  max-width: 60px; /* จำกัดพื้นที่ (การ์ดเรากว้าง 100px เผื่อที่ให้ป้าย CD ซ้ายมือ) */
+  overflow: hidden; /* ถ้าดาวทะลัก 60px ก็ตัดทิ้งเนียนๆ ไปเลย */
+}
+/* ── ✨ SHATTER EFFECT ─────────────────────────────────────── */
+.card-shard {
+  position: fixed;
+  background-size: cover;
+  background-position: center;
+  background-color: #1a1a2e;
+  pointer-events: none;
+  z-index: 9999;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  will-change: transform, opacity;
+  animation: shardFly 0.72s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+@keyframes shardFly {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1);                              opacity: 1; }
+  35%  { opacity: 1; }
+  100% { transform: translate(var(--ex), var(--ey)) rotate(var(--er)) scale(0.28);     opacity: 0; }
+}
+
+.card-shatter-flash {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  background: white;
+  border-radius: 8px;
+  animation: shatterFlash 0.25s ease-out forwards;
+}
+@keyframes shatterFlash {
+  0%   { opacity: 0.85; transform: scale(1.06); }
+  100% { opacity: 0;    transform: scale(1.22); }
+}
+/* ─────────────────────────────────────────────────────────── */

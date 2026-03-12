@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Card Mini — Battle Arena</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<div class="battlefield">
+  
+  <div id="enemy-hand" class="hand-zone enemy-hand-zone" style="margin-top: 0; padding-top: 0; border-top: none; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; transform: scale(0.8);"></div>
+  <div id="enemy-deck-count" class="deck-counter">🎴 กองการ์ดศัตรู: 7</div>
+  
+  <div class="zone enemy-zone">
+    <div class="hero enemy-hero">
+      <h2>💀 Demon Lord</h2>
+      <p>HP: 100,000</p>
+    </div>
+    <div class="board enemy-board">
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+    </div>
+  </div>
+
+  <hr class="divider">
+
+  <div class="zone player-zone">
+    <div class="board player-board">
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+      <div class="card-slot"></div>
+    </div>
+    <div class="hero player-hero">
+      <h2>🛡️ Peach</h2>
+      <p>HP: 30000</p>
+    </div>
+  </div>
+  
+  <div id="player-deck-count" class="deck-counter">🎴 กองการ์ดเรา: 7</div>
+  <div id="player-hand" class="hand-zone"></div>
+
+  <div class="controls" style="text-align: center; margin-top: 20px; padding-bottom: 20px;">
+    <button id="end-turn-btn" class="end-turn-btn">⏳ จบเทิร์น (End Turn)</button>
+  </div>
+  
+  <div class="speed-control" style="margin-top: 10px; display: flex; gap: 5px; justify-content: center;">
+    <button id="speed-x05" style="padding: 5px 15px; cursor: pointer; background: #444; color: white; border: 1px solid #777;">x0.5 (Slow)</button>
+    <button id="speed-x1"  style="padding: 5px 15px; cursor: pointer; background: #444; color: white; border: 1px solid #777;">x1 (Normal)</button>
+    <button id="speed-x2"  style="padding: 5px 15px; cursor: pointer; background: #007bff; color: white; border: 1px solid #fff;">x2 (Fast)</button>
+  </div>
+
+  <div id="graveyard-btn" class="graveyard-zone">
+    🪦 สุสาน (<span id="grave-count">0</span>)
+  </div>
+
+  <!-- Graveyard Modal -->
+  <div id="grave-modal" class="modal">
+    <div class="modal-content">
+      <span id="close-modal" class="close">&times;</span>
+      <h2 style="color: #d4af37;">🪦 วิญญาณที่หลับใหล (Graveyard)</h2>
+      <hr style="border-color: #444;">
+      <div id="grave-list" class="grave-list"></div>
+    </div>
+  </div>
+
+  <!-- Card Detail Modal -->
+  <div id="card-detail-modal" class="modal">
+    <div class="modal-content card-detail-content">
+      <span id="close-detail-modal" class="close">&times;</span>
+      <div class="card-detail-layout">
+        <div id="detail-card-image" class="detail-card-image"></div>
+        <div class="detail-info">
+          <h2 id="detail-card-name">Card Name</h2>
+          <div id="detail-card-stars" class="detail-stars">⭐⭐⭐</div>
+          <div class="detail-stats">
+            <span id="detail-card-atk">⚔️ 0</span>
+            <span id="detail-card-hp">❤️ 0</span>
+            <span id="detail-card-wait">⏱️ 0</span>
+          </div>
+          <hr style="border-color: #444; margin: 15px 0;">
+          <div id="detail-card-skills" class="detail-skills-list"></div>
+          <button id="detail-play-btn" class="end-turn-btn" style="display: none; width: 100%; margin-top: 20px;">🔥 ลงสนาม (Play Card)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Battle Log -->
+  <div id="battle-log-toggle" class="log-toggle-btn">📜 เช็ก Log ดาเมจ</div>
+  <div id="battle-log-container" class="log-container" style="display: none;">
+    <div class="log-header">
+      <span style="color: #d4af37; font-weight: bold;">📜 Battle Log</span>
+      <div>
+        <button id="copy-log-btn" class="log-btn">📋 Copy</button>
+        <button id="close-log-btn" class="log-btn">❌</button>
+      </div>
+    </div>
+    <div id="battle-log-content" class="log-content"></div>
+  </div>
+
+</div><!-- end .battlefield -->
+
+<!-- JS โหลดสุดท้าย ลำดับสำคัญมาก -->
+<script src="js/cards.js"></script>
+<script src="js/skills.js"></script>
+<script src="js/skillEngine.js"></script> <script src="js/deck.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/battle.js"></script>
+<script src="js/enemyAI.js"></script>
+<script src="js/game.js"></script>
+
+</body>
+</html>
