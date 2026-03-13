@@ -1,5 +1,5 @@
 // ============================================================
-// 🤖 PHASE 8.3: OOP ENEMY AI & TURN CONTROL
+// 🤖 PHASE 8.3: OOP ENEMY AI & TURN CONTROL (Event-Driven)
 // ============================================================
 
 async function startOfBattlePhase() {
@@ -7,7 +7,11 @@ async function startOfBattlePhase() {
     let st = window.engineState;
     let player = st.getPlayer(isPlayer);
     let board = player.board;
-    let slots = isPlayer ? playerBoardSlots : enemyBoardSlots;
+    
+    // 🐛 [Fix] ค้นหา Element สดๆ ผ่าน DOM แทนการเรียกตัวแปร Global ที่ถูกลบไปแล้ว
+    let slots = isPlayer 
+      ? document.querySelectorAll('.player-board .card-slot') 
+      : document.querySelectorAll('.enemy-board .card-slot');
     
     // หาการ์ดบอส (id 98 หรือชื่อ Chronovex)
     let ci = hnd.findIndex(c => c.id === 98 || c.name.includes("Chronovex"));
@@ -25,8 +29,11 @@ async function startOfBattlePhase() {
 
     // ── ✨ RIFT DEPLOYMENT visual effect ──
     (() => {
-      const slotRect = getEffectRect(slots[em]);
+      // ป้องกันบัค getEffectRect หาย
+      const getRect = typeof getEffectRect === 'function' ? getEffectRect : (el) => el.getBoundingClientRect();
+      const slotRect = getRect(slots[em]);
       if (!slotRect) return;
+      
       const cx = slotRect.left + slotRect.width / 2, cy = slotRect.top  + slotRect.height / 2;
 
       const ov = document.createElement('div'); ov.className = 'battle-vfx rift-overlay'; document.body.appendChild(ov);
@@ -48,12 +55,16 @@ async function startOfBattlePhase() {
       ttl.innerHTML = `<span class="rt-main">🌀 RIFT WARP</span><span class="rt-sub">Chronovex · Deployed</span>`;
       document.body.appendChild(ttl); sd(() => ttl.remove(), 2200);
 
+      // 🐛 [Fix] ค้นหา battlefield สดๆ แทนตัวแปรเดิม
+      const battlefieldEl = document.querySelector('.battlefield');
       battlefieldEl?.classList.add('anim-screen-shake');
       sd(() => battlefieldEl?.classList.remove('anim-screen-shake'), 700);
     })();
 
-    addLog(`🌀 Chronovex วาร์ปลงสนาม!`);
-    if (isPlayer) renderHand(); else renderEnemyHand(); markDirty(); flushBoard(); await sleep(800);
+    // 📢 ประกาศ Log และสั่งอัปเดตหน้าจอผ่าน Event
+    window.gameEvents.emit(window.EVENTS.LOG_MESSAGE, `🌀 Chronovex วาร์ปลงสนาม!`);
+    window.gameEvents.emit(window.EVENTS.BOARD_UPDATE_NEEDED);
+    await sleep(800);
     
     let bi = -1, mw = -1;
     deck.forEach((c, i) => { if (c.waitTime > mw) { mw = c.waitTime; bi = i; } });
@@ -65,9 +76,11 @@ async function startOfBattlePhase() {
       
       if (ne !== -1) { 
         board[ne] = sm; 
-        showFloat("HASTE SUMMON!", slots[ne], "skill"); 
-        addLog(`✨ Chronovex อัญเชิญ ${sm.name}`); 
-        markDirty(); flushBoard(); updateDeckCount(); await sleep(500); 
+        if (typeof showFloat === 'function') showFloat("HASTE SUMMON!", slots[ne], "skill"); 
+        
+        window.gameEvents.emit(window.EVENTS.LOG_MESSAGE, `✨ Chronovex อัญเชิญ ${sm.name}`); 
+        window.gameEvents.emit(window.EVENTS.BOARD_UPDATE_NEEDED);
+        await sleep(500); 
       } 
     }
   };
@@ -78,22 +91,25 @@ async function startOfBattlePhase() {
 
 async function endTurn() {
   let st = window.engineState;
+  const endTurnBtn = document.getElementById('end-turn-btn');
   
-  if (st.isGameOver || endTurnBtn?.disabled) return;
+  if (st.isGameOver || (endTurnBtn && endTurnBtn.disabled)) return;
   if (endTurnBtn) endTurnBtn.disabled = true;
   
-  addLog("--- เทิร์น <span class='log-player'>พีช</span> ---");
-  // 🟢 จุดที่ 1: เรียก processTurnPhase ผ่าน gameEngine
+  // 📢 เปลี่ยนจาก addLog ตรงๆ เป็นการยิง Event
+  window.gameEvents.emit(window.EVENTS.LOG_MESSAGE, "--- เทิร์น <span class='log-player'>พีช</span> ---");
   await window.gameEngine.processTurnPhase(true); 
   if (st.isGameOver) return;
 
-  addLog("--- เทิร์น <span class='log-enemy'>บอส</span> ---");
+  window.gameEvents.emit(window.EVENTS.LOG_MESSAGE, "--- เทิร์น <span class='log-enemy'>บอส</span> ---");
   st.p2.hand.forEach(c => { if (c.waitTime > 0) c.waitTime--; });
   
   if (st.p2.deck.length && st.p2.hand.length < HAND_LIMIT) {
     st.p2.hand.push(st.p2.deck.shift());
   }
-  renderEnemyHand(); updateDeckCount();
+  
+  // 📢 สั่งอัปเดตบอร์ดแทน renderEnemyHand, updateDeckCount
+  window.gameEvents.emit(window.EVENTS.BOARD_UPDATE_NEEDED);
   
   st.p2.hand.filter(c => c.waitTime <= 0).forEach(c => { 
     let e = st.p2.board.indexOf(null); 
@@ -101,13 +117,13 @@ async function endTurn() {
       c.flags._initialized = true;
       st.p2.board[e] = c; 
       st.p2.hand.splice(st.p2.hand.indexOf(c), 1); 
-      addLog(`👉 <span class="log-enemy">บอส</span> ลงการ์ด ${c.name}`); 
+      window.gameEvents.emit(window.EVENTS.LOG_MESSAGE, `👉 <span class="log-enemy">บอส</span> ลงการ์ด ${c.name}`); 
     } 
   });
   
-  markDirty(); flushBoard(); renderEnemyHand(); await sleep(600);
+  window.gameEvents.emit(window.EVENTS.BOARD_UPDATE_NEEDED);
+  await sleep(600);
 
-  // 🟢 จุดที่ 2: เรียก processTurnPhase ผ่าน gameEngine
   await window.gameEngine.processTurnPhase(false); 
   if (st.isGameOver) return;
   
@@ -115,7 +131,7 @@ async function endTurn() {
   if (st.p1.deck.length && st.p1.hand.length < HAND_LIMIT) {
      st.p1.hand.push(st.p1.deck.shift());
   }
-  renderHand(); updateDeckCount();
+  window.gameEvents.emit(window.EVENTS.BOARD_UPDATE_NEEDED);
   
   if (endTurnBtn) endTurnBtn.disabled = false;
 }

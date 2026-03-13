@@ -57,6 +57,7 @@ function renderHand() {
   });
   handZone.innerHTML = ''; handZone.appendChild(frag);
 }
+
 function renderEnemyHand() {
   if (!enemyHandZone) return;
   const frag = document.createDocumentFragment();
@@ -69,7 +70,10 @@ function renderEnemyHand() {
   });
   enemyHandZone.innerHTML = ''; enemyHandZone.appendChild(frag);
 }
+
 function realRenderBoard() {
+  if (!playerBoardSlots || !enemyBoardSlots) return;
+
   const animateCardHP = (slot, card) => {
     const hpEl = slot.querySelector('.card-hp-val');
     if (!hpEl) return;
@@ -81,59 +85,74 @@ function realRenderBoard() {
     const atkEl = slot.querySelector('.card-atk-val');
     if (!atkEl) return;
     const prev = card._displayATK ?? card.atk;
-    // อัปเดตสีก่อนเสมอ (baseATK เป็น reference ที่ไม่เคยเปลี่ยน)
     const base = card.baseATK ?? card.atk;
     const cur  = card.atk;
-    atkEl.parentElement.style.color =
-      cur > base ? '#4fc3ff' : cur < base ? '#ff4c4c' : '#eee';
+    atkEl.parentElement.style.color = cur > base ? '#4fc3ff' : cur < base ? '#ff4c4c' : '#eee';
     if (prev !== cur) animateHP(atkEl, prev, cur, '');
     card._displayATK = cur;
   };
-  playerBoardSlots.forEach((s, i) => { s.innerHTML = ''; if (playerBoard[i]) { let el = document.createElement('div'); el.className = 'card'; el.style.cssText = "width:100%;height:100%;margin:0;border:2px solid #4cff4c;"; el.innerHTML = createCardHTML(playerBoard[i], 'board'); el.onclick = () => openDetail(playerBoard[i], 'playerBoard', i); s.appendChild(el); animateCardHP(s, playerBoard[i]); animateCardATK(s, playerBoard[i]); } });
-  enemyBoardSlots.forEach((s, i)  => { s.innerHTML = ''; if (enemyBoard[i])  { let el = document.createElement('div'); el.className = 'card'; el.style.cssText = "width:100%;height:100%;margin:0;border:2px solid #ff4c4c;"; el.innerHTML = createCardHTML(enemyBoard[i],  'board'); el.onclick = () => openDetail(enemyBoard[i],  'enemyBoard', i); s.appendChild(el); animateCardHP(s, enemyBoard[i]); animateCardATK(s, enemyBoard[i]); } });
+
+  // ✅ ใส่ try-catch ครอบไว้ ป้องกันการ Render พังแล้วพาหายทั้งกระดาน
+  playerBoardSlots.forEach((s, i) => { 
+    try {
+      s.innerHTML = ''; 
+      if (playerBoard[i]) { 
+        let el = document.createElement('div'); el.className = 'card'; 
+        el.style.cssText = "width:100%;height:100%;margin:0;border:2px solid #4cff4c;position:relative;"; 
+        el.innerHTML = createCardHTML(playerBoard[i], 'board'); 
+        el.onclick = () => openDetail(playerBoard[i], 'playerBoard', i); 
+        s.appendChild(el); 
+        animateCardHP(s, playerBoard[i]); animateCardATK(s, playerBoard[i]); 
+      } 
+    } catch(e) { console.error("Player Board Render Error Slot", i, e); }
+  });
+
+  enemyBoardSlots.forEach((s, i)  => { 
+    try {
+      s.innerHTML = ''; 
+      if (enemyBoard[i])  { 
+        let el = document.createElement('div'); el.className = 'card'; 
+        el.style.cssText = "width:100%;height:100%;margin:0;border:2px solid #ff4c4c;position:relative;"; 
+        el.innerHTML = createCardHTML(enemyBoard[i], 'board'); 
+        el.onclick = () => openDetail(enemyBoard[i], 'enemyBoard', i); 
+        s.appendChild(el); 
+        animateCardHP(s, enemyBoard[i]); animateCardATK(s, enemyBoard[i]); 
+      }
+    } catch(e) { console.error("Enemy Board Render Error Slot", i, e); }
+  });
 }
+
 function updateDeckCount() { let p = $('player-deck-count'), e = $('enemy-deck-count'); if(p) p.innerText = `🎴 กองการ์ดเรา: ${playerDeck.length}`; if(e) e.innerText = `🎴 กองการ์ดศัตรู: ${enemyDeck.length}`; }
-// ── Animated HP Counter ────────────────────────────────────
-// track ค่าที่กำลังแสดงอยู่ (อาจต่างจาก playerHP จริงระหว่าง animate)
+
 let _pHPDisplay = -1, _eHPDisplay = -1;
-const _hpTimers = new WeakMap(); // cancel timer เก่าถ้าถูกเรียกซ้ำก่อน animate จบ
+const _hpTimers = new WeakMap(); 
 
 function animateHP(el, fromVal, toVal, prefix = 'HP: ') {
   if (!el) return;
-  // ยกเลิก timer เก่าของ element นี้ก่อน
   if (_hpTimers.has(el)) clearInterval(_hpTimers.get(el));
 
   const isHit = toVal < fromVal;
   el.classList.remove('hp-hit', 'hp-heal');
-  void el.offsetWidth; // reflow ให้ animation reset
+  void el.offsetWidth; 
   el.classList.add(isHit ? 'hp-hit' : 'hp-heal');
-  sd(() => el.classList.remove('hp-hit', 'hp-heal'), 350);
+  if (typeof sd !== 'undefined') sd(() => el.classList.remove('hp-hit', 'hp-heal'), 350); 
+  else setTimeout(() => el.classList.remove('hp-hit', 'hp-heal'), 350);
 
   let current = fromVal;
-  const diff = Math.abs(toVal - fromVal);
-  // easing: เริ่มเร็ว ค่อยๆ ช้า (ยิ่งใกล้ toVal ยิ่งช้า)
-  const BASE_SPEED = 16; // ms ต่อ frame
+  const BASE_SPEED = 16; 
   const timer = setInterval(() => {
     const remaining = Math.abs(toVal - current);
-    // step: ใหญ่ตอนต้น เล็กตอนท้าย (min 1)
     const step = Math.max(1, Math.round(remaining * 0.2));
     current += (toVal > current ? 1 : -1) * step;
-    // ไม่ให้เกิน/ต่ำกว่า toVal
-    if ((toVal > fromVal && current >= toVal) || (toVal < fromVal && current <= toVal)) {
-      current = toVal;
-    }
+    if ((toVal > fromVal && current >= toVal) || (toVal < fromVal && current <= toVal)) { current = toVal; }
     el.innerText = `${prefix}${current}`;
-    if (current === toVal) {
-      clearInterval(timer);
-      _hpTimers.delete(el);
-    }
+    if (current === toVal) { clearInterval(timer); _hpTimers.delete(el); }
   }, BASE_SPEED);
   _hpTimers.set(el, timer);
 }
 
 function updateHeroHP() {
   if (!playerHeroText) return;
-  // animate ถ้าค่าเปลี่ยน, set ตรงถ้าเท่าเดิม (เช่น init)
   if (playerHP !== _pHPDisplay) { animateHP(playerHeroText, _pHPDisplay, playerHP); _pHPDisplay = playerHP; }
   if (enemyHP  !== _eHPDisplay) { animateHP(enemyHeroText,  _eHPDisplay, enemyHP);  _eHPDisplay = enemyHP; }
   let pOut = !playerDeck.length && !hand.length && playerBoard.every(c => !c);
@@ -141,16 +160,15 @@ function updateHeroHP() {
   
   if ((playerHP <= 0 || pOut) && !isGameOver) { 
       isGameOver = true; let r = pOut ? "ไพ่หมด!" : "HP หมด!"; addLog(`💀 <span class='log-player'>พีช</span> แพ้ (${r})`); 
-      setTimeout(() => { alert(`แพ้: ${r}`); renderStatsUI(); statsContainer.style.display = 'flex'; }, 500);
+      setTimeout(() => { alert(`แพ้: ${r}`); if (typeof renderStatsUI === 'function') renderStatsUI(); if(statsContainer) statsContainer.style.display = 'flex'; }, 500);
   } else if ((enemyHP <= 0 || eOut) && !isGameOver) { 
       isGameOver = true; let r = eOut ? "ไพ่หมด!" : "HP หมด!"; addLog(`🎉 <span class='log-player'>พีช</span> ชนะ (${r})`); 
-      setTimeout(() => { alert(`ชนะ: ${r}`); renderStatsUI(); statsContainer.style.display = 'flex'; }, 500);
+      setTimeout(() => { alert(`ชนะ: ${r}`); if (typeof renderStatsUI === 'function') renderStatsUI(); if(statsContainer) statsContainer.style.display = 'flex'; }, 500);
   }
 }
+
 function updateGrave() { let g = $('grave-count'); if(g) g.innerText = playerGraveyard.length; }
 
-// ── 9. MODALS ──────────────────────────────────────────────
-let detailModal, detailClose, detailPlayBtn;
 function openDetail(card, src, idx) {
   if (!card || !detailModal) return;
   $('detail-card-name').innerText = card.name; $('detail-card-stars').innerText = '⭐'.repeat(card.stars || 0);
@@ -159,26 +177,7 @@ function openDetail(card, src, idx) {
   $('detail-card-skills').innerHTML = card.skills?.length ?
     card.skills.map(s => `<div class="detail-skill-item"><div class="detail-skill-title">${s.name}</div><div class="detail-skill-desc">${s.desc}</div></div>`).join('') : `<div style="color:#aaa">ไม่มีทักษะ</div>`;
   if (src === 'playerHand' && card.waitTime <= 0 && !isGameOver) { detailPlayBtn.style.display = 'block';
-    detailPlayBtn.onclick = () => { playCard(idx); detailModal.style.display = 'none'; }; }
+    detailPlayBtn.onclick = () => { if(typeof window.playCard === 'function') window.playCard(idx); detailModal.style.display = 'none'; }; }
   else detailPlayBtn.style.display = 'none';
   detailModal.style.display = 'flex';
-}
-// (modal onclick events are wired inside DOMContentLoaded below)
-
-let graveBtn, graveModal, closeModal, graveList;
-
-function playCard(idx) {
-  let st = window.engineState.p1;
-  let e = st.board.indexOf(null);
-  
-  if (e !== -1) { 
-    let card = st.hand[idx];
-    addLog(`👉 <span class="log-player">พีช</span> ลงการ์ด <span class="log-player">${card.name}</span>`);
-    card.flags._initialized = true; // ยืนยันการลงสนามแบบ OOP
-    st.board[e] = card; 
-    st.hand.splice(idx, 1); 
-    markDirty(); flushBoard(); renderHand(); 
-  } else {
-    alert("สนามเต็มแล้ว!");
-  }
 }

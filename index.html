@@ -7,7 +7,18 @@
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- เบลอแนวตั้งหนัก (ตอนพุ่ง) -->
+    <filter id="blur-y-heavy">
+      <feGaussianBlur stdDeviation="0 4"/>
+    </filter>
+    <!-- เบลอแนวตั้งเบา (ตอนดีดกลับ) -->
+    <filter id="blur-y-light">
+      <feGaussianBlur stdDeviation="0 1.5"/>
+    </filter>
+  </defs>
+</svg>
 <div class="battlefield">
   
   <div id="enemy-hand" class="hand-zone enemy-hand-zone" style="margin-top: 0; padding-top: 0; border-top: none; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; transform: scale(0.8);"></div>
@@ -112,12 +123,14 @@
 </div><!-- end .battlefield -->
 
 <!-- JS โหลดสุดท้าย ลำดับสำคัญมาก -->
+ <script src="js/eventBus.js"></script>
 <script src="js/cards.js"></script>
 <script src="js/skills.js"></script>
 <script src="js/skillEngine.js"></script> <script src="js/deck.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/battle.js"></script>
 <script src="js/enemyAI.js"></script>
+<script src="js/uiController.js"></script>
 <script src="js/game.js"></script>
 
 </body>

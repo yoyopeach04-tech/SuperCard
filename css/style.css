@@ -937,10 +937,30 @@ body { margin: 0; background-color: #111; color: #eee; font-family: 'Segoe UI', 
 .anim-loa-attack-up   { animation: loaAttackUp   calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
 .anim-loa-attack-down { animation: loaAttackDown calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards; }
 
-/* Motion Blur ตอนพุ่ง */
-.card.anim-loa-attack-up,
-.card.anim-loa-attack-down {
-  filter: blur(1px);
+@keyframes loaAttackUp {
+  0%   { transform: translateY(0) scale(1);                filter: blur(0);                         }
+  18%  { transform: translateY(15px) scale(1.05);          filter: blur(0);                         }
+  45%  { transform: translateY(-120px) scale(1.15) rotate(-2deg); filter: url(#blur-y-heavy) brightness(1.15); }
+  62%  { transform: translateY(-110px) scale(1.2);         filter: blur(0) brightness(1.4);         }
+  80%  { transform: translateY(-20px) scale(1.05);         filter: url(#blur-y-light);              }
+  100% { transform: translateY(0) scale(1);                filter: blur(0);                         }
+}
+
+@keyframes loaAttackDown {
+  0%   { transform: translateY(0) scale(1);                filter: blur(0);                         }
+  18%  { transform: translateY(-15px) scale(1.05);         filter: blur(0);                         }
+  45%  { transform: translateY(120px) scale(1.15) rotate(2deg);  filter: url(#blur-y-heavy) brightness(1.15); }
+  62%  { transform: translateY(110px) scale(1.2);          filter: blur(0) brightness(1.4);         }
+  80%  { transform: translateY(20px) scale(1.05);          filter: url(#blur-y-light);              }
+  100% { transform: translateY(0) scale(1);                filter: blur(0);                         }
+}
+
+/* animation กลับเหลือตัวเดียว */
+.anim-loa-attack-up {
+  animation: loaAttackUp calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+.anim-loa-attack-down {
+  animation: loaAttackDown calc(0.35s / var(--speed)) cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
 }
 
 /* The Impact — รอย slash 3 เส้น */

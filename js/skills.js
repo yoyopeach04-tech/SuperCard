@@ -75,7 +75,9 @@ const DEATH_TABLE = {
     let vDmg = Math.min(Math.floor(c.baseATK * cnt + wDmg), 500);
     addLog(`🌌 ${c.name} <span class="log-skill">Echoes of Oblivion</span> <span class="log-dmg">${vDmg} AOE</span>`);
     let tb = bIdx === 0 ? enemyBoard : playerBoard, ts = bIdx === 0 ? enemyBoardSlots : playerBoardSlots;
-    tb.forEach((e, idx) => { if (e) { applyDamage(e, vDmg, ts[idx], bIdx !== 0, "echoes", c); if (e.hp > 0 && e.hp < e.maxHP * 0.2) { e.hp = 0; showFloat("INSTANT KILL!", ts[idx], "skill", idx * 80); } } });
+    
+    // 🐛 [Fix] เติม window.gameEngine.applyDamage
+    tb.forEach((e, idx) => { if (e) { window.gameEngine.applyDamage(e, vDmg, ts[idx], bIdx !== 0, "echoes", c); if (e.hp > 0 && e.hp < e.maxHP * 0.2) { e.hp = 0; showFloat("INSTANT KILL!", ts[idx], "skill", idx * 80); } } });
     return false;
   },
   "Cataclysm Singularity": (c, board, grave, slots, i, bIdx) => {
@@ -84,7 +86,6 @@ const DEATH_TABLE = {
     const cataDmg = Math.floor((c.baseATK || c.atk) * 2.0);
     addLog(`☄️ ${c.name} <span class="log-skill">Cataclysm Singularity!</span> <span class="log-dmg">AOE ${cataDmg} + Decay MaxHP -20%</span>`);
 
-    // ── ✨ SINGULARITY visual ──
     (() => {
       battlefieldEl?.classList.add('anim-screen-shake');
       sd(() => battlefieldEl?.classList.remove('anim-screen-shake'), 900);
@@ -107,14 +108,15 @@ const DEATH_TABLE = {
         });
       }
     })();
-    // ──────────────────────────
 
-    // FIX: ทำ AOE ตรงนี้เลย (sync กับ checkDeaths loop) แทน setTimeout
     oBoard.forEach((e, idx) => {
       if (!e || e.hp <= 0) return;
       const fl = document.createElement('div'); fl.className = 'battle-vfx singularity-decay-flash';
       oSlots[idx].style.position = 'relative'; oSlots[idx].appendChild(fl);
-      applyDamage(e, cataDmg, oSlots[idx], bIdx === 0, "singularity", c);
+      
+      // 🐛 [Fix] เติม window.gameEngine.applyDamage
+      window.gameEngine.applyDamage(e, cataDmg, oSlots[idx], bIdx === 0, "singularity", c);
+      
       const decay = Math.floor(e.maxHP * 0.2);
       e.maxHP = Math.max(1, e.maxHP - decay);
       e.hp = Math.min(e.hp, e.maxHP);
@@ -122,9 +124,8 @@ const DEATH_TABLE = {
       sd(() => fl?.remove(), 1300);
     });
     markDirty(); flushBoard(); updateHeroHP();
-    // checkDeaths() จะถูกเรียกโดย loop หลักใน checkDeaths() เองอยู่แล้ว
 
-    return false; // ตัวมันเองตายปกติ
+    return false; 
   },
   "Final Judgement": (c, board, grave, slots, i, bIdx) => {
     let oBoard = bIdx === 0 ? enemyBoard : playerBoard;
