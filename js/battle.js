@@ -264,7 +264,7 @@ class BattleEngine {
       // 📢 6. สั่ง UI ดึงดาบกลับ
       window.gameEvents.emit(window.EVENTS.ATTACK_RECOIL, { idx, isPlayer: isP1 });
       
-      await sleep(100); 
+      await sleep(200); 
 
       if (attacker.hp <= 0) break;
       await this.triggerSkillEvent('onAfterAttack', attacker, ctx);

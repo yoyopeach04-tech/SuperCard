@@ -45,7 +45,7 @@ function buildDeck(isPlayer) {
     if (c.stars === 6 && counts[c.id] >= 1) continue;
     if (c.stars === 5 && counts[c.id] >= 2) continue;
     if (c.stars  <  5 && counts[c.id] >= 3) continue;
-    let nc = cloneCard(c); nc.uid = ++cardUidCounter;
+    let nc = cloneCard(c); let uid = window.engineState ? window.engineState.generateUID() : Math.floor(Math.random() * 100000);
     nc.owner = isPlayer ? 'พีช' : 'บอส';
     d.push(nc); counts[c.id]++;
   }
